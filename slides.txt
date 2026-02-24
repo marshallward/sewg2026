@@ -1,0 +1,114 @@
+=======================================================
+Porting MOM6 to GPUs with OpenMP and Fortran intrinsics
+=======================================================
+
+:author: Marshall Ward
+:organization: NOAA-GFDL
+:description: Overview of GPU porting strategy for MOM6, with early results.
+:date: 2026-02-28
+:url: https://github.com/marshallward/ncar2026.html
+:preface:
+   This is our overall strategy for porting MOM6 to GPUs.
+
+
+The Team
+========
+
+* Me (NOAA-GFDL)
+* Ed Yang (ACCESS-NRI)
+* Jorge Galvez Vallejo (NCI Australia)
+* Utheri Wagura (NOAA-GFDL)
+
+
+Strategy
+========
+
+* Manual memory management
+
+* do concurrent where we can
+
+* OpenMP where we must
+
+
+What is OpenMP?
+===============
+
+For our purposes:
+
+* The Fortran compiler is a PTX generator
+
+* OpenMP is an interface to CUDA runtime, which is a PTX delivery mechanism
+
+
+Component Scaling
+=================
+
+image here
+
+
+Message Passing Support
+=======================
+
+* OpenMP based
+
+* OpenACC required to sync device IDs
+
+
+MPI Scaling
+===========
+
+image v2
+
+
+Reproducibility
+===============
+
+Solutions are bit reproducible!
+
+
+Some Lessons
+============
+
+* OpenMP / OpenACC / do concurrent are mostly equivalent
+
+  * 
+
+
+Functions on GPUs
+=================
+
+Mostly OK
+
+
+Caveats
+=======
+
+* do concurrent cannot (currently) support local arrays
+
+* 
+
+
+Objects on GPUs
+===============
+
+
+Upcoming challenges
+===================
+
+* The diagnostic mediator is IO-heavy, relies heavily on FMS, and has its own
+  share of calculations (e.g. remapping)
+
+  * Run async on CPU?
+
+
+Why Pursue?
+===========
+
+* It's working.  Impediments are overcome.
+
+* Integration with existing codebase is brainless.
+
+* We must seriously consider any option that works.
+
+* Scientists are going to write unfriendly code.  Fortran historically handles
+  this well.
