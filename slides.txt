@@ -49,15 +49,15 @@ CUDA C++
 
    // Define kernel
    __global__ kernel(a, b, c, ni, nj, nk) {
-        i = (blockIdx%x - 1) * blockDim%x + threadIdx%x
-        j = (blockIdx%y - 1) * blockDim%y + threadIdx%y
-        k = blockIdx%z
+        i = blockIdx.x * blockDim.x + threadIdx.x;
+        j = blockIdx.y * blockDim.y + threadIdx.y;
+        k = blockIdx.z;
 
-       a(i,j,k) = b(i,j,k) + c(i,j,k)
+       a(i,j,k) = b(i,j,k) + c(i,j,k);
    }
 
    // Submit kernel
-   kernel<<<grid, tblock>>>(a, b, c, ni, nj, nk)
+   kernel<<<grid, tblock>>>(a, b, c, ni, nj, nk);
 
 Fortran ``do concurrent``
 
@@ -85,7 +85,7 @@ Executions may occur in any order.
        a(i,j,k) = b(i,j,k) + c(i,j,k)
    enddo
 
-Order-dependent operations are forbidden.
+Order-dependent operations break compliance.
 
 * ``a(i) = a(i-1) + 1``
 
@@ -93,7 +93,27 @@ Order-dependent operations are forbidden.
 
 * ``print *, i``
 
-But it is also a "contract" (e.g. C's ``restrict``)
+But also a "contract" to be good (e.g. C's ``restrict``)
+
+
+A good idea?
+============
+
+Advantages
+
+* Simple to write and use
+
+* Language-standard Fortran
+
+* Single codebase for CPU and GPU
+
+Disadvantages
+
+* Surrender grid/block layout to compiler
+
+* Does no memory management
+
+* Implementation issues still exist
 
 
 It's all the same
@@ -122,6 +142,27 @@ MOM6 is a challenging codebase
 * Algorithmic: MOM is not one solver, it is dozens
 
 * Large codebase: Rewrites impede development
+
+
+Coriolis & Advection
+====================
+
+.. include:: src/MOM_CorAdCalc.F90
+   :code: fortran
+
+
+Breakdown
+---------
+
+* Over 1000 LoC
+
+* ``if``-blocks for dozens of features
+
+* Heavy derived type usage
+
+* Function calls within loops
+
+How to deconstruct something like this?
 
 
 Component Scaling
