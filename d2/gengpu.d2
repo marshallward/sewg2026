@@ -1,0 +1,36 @@
+fortran: {
+    label: Fortran Source
+    openmp {
+        label: OpenMP
+    }
+    do_conc {
+        label: do concurrent
+        style.font: mono
+    }
+}
+
+cuda_cpp {
+    label: CUDA\n(C++)
+}
+
+cpp {
+    label: C++ source
+    openmp {
+        label: OpenMP
+    }
+}
+
+ptx {
+    label: PTX
+}
+
+sass {
+    label: GPU bytecode (SASS)
+}
+
+fortran.openmp -> ptx
+cpp.openmp -> ptx: nvc++
+fortran.do_conc -> ptx: nvfortran
+python -> ptx: Numba
+cuda_cpp -> ptx: nvcc
+ptx -> sass
