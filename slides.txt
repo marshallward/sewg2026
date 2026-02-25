@@ -40,6 +40,90 @@ For our purposes:
 * OpenMP is an interface to CUDA runtime, which is a PTX delivery mechanism
 
 
+Kernels in Fortran
+==================
+
+CUDA C++
+
+.. code:: c++
+
+   // Define kernel
+   __global__ kernel(a, b, c, ni, nj, nk) {
+        i = (blockIdx%x - 1) * blockDim%x + threadIdx%x
+        j = (blockIdx%y - 1) * blockDim%y + threadIdx%y
+        k = blockIdx%z
+
+       a(i,j,k) = b(i,j,k) + c(i,j,k)
+   }
+
+   // Submit kernel
+   kernel<<<grid, tblock>>>(a, b, c, ni, nj, nk)
+
+Fortran ``do concurrent``
+
+.. code:: fortran
+
+   do concurrent (k=1:nk, j=1:nj, i=1:ni)
+       a(i,j,k) = b(i,j,k) + c(i,j,k)
+   enddo
+
+
+``do concurrent`` rules
+=======================
+
+Executions may occur in any order.
+
+.. "The execution order of the iterations can be left indeterminate..."
+
+.. The block of a DO CONCURRENT construct is executed for every active
+   combination of the index-name values.  Each execution of the block is an
+   iteration. The executions may occur in any order.
+
+.. code:: fortran
+
+   do concurrent (k=1:nk, j=1:nj, i=1:ni)
+       a(i,j,k) = b(i,j,k) + c(i,j,k)
+   enddo
+
+Order-dependent operations are forbidden.
+
+* ``a(i) = a(i-1) + 1``
+
+* ``sum = sum + a(i)``
+
+* ``print *, i``
+
+But it is also a "contract" (e.g. C's ``restrict``)
+
+
+It's all the same
+=================
+
+Choose your favorite kernel generation tool, then
+
+* Pull out the program
+
+* Find and rewrite the kernel
+
+* Replace in codebase and repeat
+
+
+The reality: MOM6
+=================
+
+MOM6 is a challenging codebase
+
+* Community code: Heavily nested if-blocks
+
+* Bit reproducible: We don't break people's answers
+
+* Diagnostics: we capture just about every stage
+
+* Algorithmic: MOM is not one solver, it is dozens
+
+* Large codebase: Rewrites impede development
+
+
 Component Scaling
 =================
 
@@ -71,7 +155,7 @@ Some Lessons
 
 * OpenMP / OpenACC / do concurrent are mostly equivalent
 
-  * 
+  *
 
 
 Functions on GPUs
@@ -85,7 +169,7 @@ Caveats
 
 * do concurrent cannot (currently) support local arrays
 
-* 
+*
 
 
 Objects on GPUs
