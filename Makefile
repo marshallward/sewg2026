@@ -11,13 +11,12 @@ FLAGS=-s \
 	  --no-highlight \
 	  --mathjax
 
-#DOTFIGURES=img/gitrepos.svg img/mom_submit.svg img/mom_verify.svg
-DOTFILES=$(wildcard dot/*.dot)
-DOTFIGURES=$(patsubst %.dot,%.svg,$(subst dot/,img/,$(DOTFILES)))
+D2FILES=$(wildcard d2/*.d2)
+D2FIGURES=$(patsubst %.d2,%.svg,$(subst d2/,img/,$(D2FILES)))
 
 SOURCE=$(wildcard src/*.F90)
 
-all: index.html reveal.js $(DOTFIGURES)
+all: index.html reveal.js $(DOTFIGURES) $(D2FIGURES)
 
 reveal.js:
 	wget -N ${REPO}
@@ -35,8 +34,8 @@ index.html : slides.txt gfdl.revealjs reveal.js/css/theme/gfdl.css $(DOTFIGURES)
 	sed -i 's/<li class="fragment"/<li/g' $@
 	sed -i 's/<video /<video autoplay loop /g' $@
 
-img/%.svg: dot/%.dot
-	dot -Tsvg $^ > $@
+img/%.svg: d2/%.d2
+	d2 $^ $@
 
 img/fixedprec.svg: dot/fixedprec.dot
 	dot -Tsvg:cairo $^ > $@

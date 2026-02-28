@@ -1,5 +1,9 @@
+style.fill: transparent
+
 fortran: {
     label: Fortran Source
+    style.font-color: white
+    style.fill: lightsteelblue
     openmp {
         label: OpenMP
     }
@@ -15,6 +19,8 @@ cuda_cpp {
 
 cpp {
     label: C++ source
+    style.font-color: white
+    style.fill: lightsteelblue
     openmp {
         label: OpenMP
     }
@@ -28,9 +34,25 @@ sass {
     label: GPU bytecode (SASS)
 }
 
-fortran.openmp -> ptx
-cpp.openmp -> ptx: nvc++
-fortran.do_conc -> ptx: nvfortran
-python -> ptx: Numba
-cuda_cpp -> ptx: nvcc
-ptx -> sass
+fortran.openmp -> ptx {
+    style.stroke: white
+}
+cpp.openmp -> ptx: nvc++ {
+    style.stroke: white
+    style.font-color: white
+}
+fortran.do_conc -> ptx: nvfortran {
+    style.stroke: white
+    style.font-color: white
+}
+python -> ptx: Numba {
+    style.stroke: white
+    style.font-color: white
+}
+cuda_cpp -> ptx: nvcc {
+    style.stroke: white
+    style.font-color: white
+}
+ptx -> sass {
+    style.stroke: white
+}

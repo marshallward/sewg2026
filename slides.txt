@@ -119,13 +119,7 @@ Disadvantages
 It's all the same
 =================
 
-Choose your favorite kernel generation tool, then
-
-* Pull out the program
-
-* Find and rewrite the kernel
-
-* Replace in codebase and repeat
+.. image:: img/gengpu.svg
 
 
 The reality: MOM6
