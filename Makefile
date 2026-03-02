@@ -35,7 +35,7 @@ index.html : slides.txt gfdl.revealjs reveal.js/css/theme/gfdl.css $(DOTFIGURES)
 	sed -i 's/<video /<video autoplay loop /g' $@
 
 img/%.svg: d2/%.d2
-	d2 $^ $@
+	d2 $^ $@ --pad 2
 
 img/fixedprec.svg: dot/fixedprec.dot
 	dot -Tsvg:cairo $^ > $@
