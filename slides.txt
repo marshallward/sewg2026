@@ -68,6 +68,12 @@ Fortran ``do concurrent``
    enddo
 
 
+Just Another Kernel
+===================
+
+.. image:: img/gengpu.svg
+
+
 ``do concurrent`` rules
 =======================
 
@@ -85,7 +91,7 @@ Executions may occur in any order.
        a(i,j,k) = b(i,j,k) + c(i,j,k)
    enddo
 
-Order-dependent operations break compliance.
+Cannot use order-dependent operations:
 
 * ``a(i) = a(i-1) + 1``
 
@@ -93,7 +99,7 @@ Order-dependent operations break compliance.
 
 * ``print *, i``
 
-But also a "contract" to be good (e.g. C's ``restrict``)
+But it's also a "contract" to be good (e.g. C's ``restrict``)
 
 
 A good idea?
@@ -116,12 +122,6 @@ Disadvantages
 * Implementation issues still exist
 
 
-It's all the same
-=================
-
-.. image:: img/gengpu.svg
-
-
 The reality: MOM6
 =================
 
@@ -136,13 +136,6 @@ MOM6 is a challenging codebase
 * Algorithmic: MOM is not one solver, it is dozens
 
 * Large codebase: Rewrites impede development
-
-
-Coriolis & Advection
-====================
-
-.. include:: src/MOM_CorAdCalc.F90
-   :code: fortran
 
 
 Breakdown
@@ -162,7 +155,13 @@ How to deconstruct something like this?
 Component Scaling
 =================
 
-image here
+.. image:: img/genoa_vs_h100.svg
+
+
+Reproducibility
+===============
+
+Solutions are bit reproducible!
 
 
 Message Passing Support
@@ -176,13 +175,7 @@ Message Passing Support
 MPI Scaling
 ===========
 
-image v2
-
-
-Reproducibility
-===============
-
-Solutions are bit reproducible!
+.. image:: img/mpi_scaling.svg
 
 
 Some Lessons
@@ -196,7 +189,17 @@ Some Lessons
 Functions on GPUs
 =================
 
-Mostly OK
+.. include:: src/gradKE.F90
+   :code: fortran
+
+Use ``!$omp declare target`` in specification
+(although compiler does this automatically)
+
+
+Function Inlining
+=================
+
+.. image:: img/coradcalc_teams.svg
 
 
 Caveats

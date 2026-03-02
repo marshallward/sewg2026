@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="pandoc">
+  <meta name="author" content="Marshall Ward">
+  <meta name="dcterms.date" content="2026-02-28">
+  <title>Porting MOM6 to GPUs with OpenMP and Fortran intrinsics</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
+  <link rel="stylesheet" href="./reveal.js/dist/reveal.css">
+  <style type="text/css">
+      code{white-space: pre-wrap;}
+      span.smallcaps{font-variant: small-caps;}
+      span.underline{text-decoration: underline;}
+      div.column{display: inline-block; vertical-align: top; width: 50%;}
+  </style>
+  <link rel="stylesheet" href="./reveal.js/css/theme/gfdl.css" id="theme">
+  <!-- Explicitly add zenburn for highlight support -->
+  <link rel="stylesheet" href="./reveal.js/plugin/highlight/zenburn.css" id="theme">
+  <!-- Printing and PDF exports -->
+  <script>
+    var link = document.createElement( 'link' );
+    link.rel = 'stylesheet';
+    link.type = 'text/css';
+    link.href = window.location.search.match( /print-pdf/gi ) ? './reveal.js/css/print/pdf.scss' : './reveal.js/css/print/paper.scss';
+    document.getElementsByTagName( 'head' )[0].appendChild( link );
+  </script>
+  <!--[if lt IE 9]>
+  <script src="./reveal.js/lib/js/html5shiv.js"></script>
+  <![endif]-->
+  <base href="./index.html">
+</head>
+<body>
+  <div class="reveal"
+       style="background: url(img/bg_gfdl.jpg);
+              background-size: cover;">
+
+    <header style="width: 10vh; position: absolute; bottom: 2vh; right: 2vh;">
+      <!-- img src="img/noaa_logo.png" -->
+    </header>
+
+    <footer style="font-size: 1pc; position: absolute; bottom: 2%; left: 2%;">
+      <code><p><a
+href="https://github.com/marshallward/ncar2026.html">https://github.com/marshallward/ncar2026.html</a></p></code>
+    </footer>
+
+    <div class="slides">
+
+<section id="title-slide">
+  <!--div class="reveal" style="text-align: right;">
+    <img src="img/noaa_logo.png"
+         style="background: none; border: none; box-shadow: none;
+         width: 30%"
+         alt="NCI">
+  </div-->
+  <h1 class="title">Porting MOM6 to GPUs with OpenMP and Fortran
+intrinsics</h1>
+  <p class="author" style="text-align: right;">Marshall Ward</p>
+  <!-- org has a <p> for some reason... so use <div> -->
+  <div class="organization" style="text-align: right;"><p>NOAA-GFDL</p></div>
+  <p class="date" style="text-align: right;">2026-02-28</p>
+  <!-- Currently cannot add notes to a title slide, so have to do manually-->
+  <aside class="notes">
+    <p>This is our overall strategy for porting MOM6 to GPUs.</p>
+  </aside>
+</section>
+
+<section id="the-team" class="title-slide slide level1">
+<h1>The Team</h1>
+<ul>
+<li>Me (NOAA-GFDL)</li>
+<li>Ed Yang (ACCESS-NRI)</li>
+<li>Jorge Galvez Vallejo (NCI Australia)</li>
+<li>Utheri Wagura (NOAA-GFDL)</li>
+</ul>
+</section>
+
+<section id="strategy" class="title-slide slide level1">
+<h1>Strategy</h1>
+<ul>
+<li>Manual memory management</li>
+<li>do concurrent where we can</li>
+<li>OpenMP where we must</li>
+</ul>
+</section>
+
+<section id="what-is-openmp" class="title-slide slide level1">
+<h1>What is OpenMP?</h1>
+<p>For our purposes:</p>
+<ul>
+<li>The Fortran compiler is a PTX generator</li>
+<li>OpenMP is an interface to CUDA runtime, which is a PTX delivery
+mechanism</li>
+</ul>
+</section>
+
+<section id="kernels-in-fortran" class="title-slide slide level1">
+<h1>Kernels in Fortran</h1>
+<p>CUDA C++</p>
+<pre class="c++"><code>// Define kernel
+__global__ kernel(a, b, c, ni, nj, nk) {
+     i = blockIdx.x * blockDim.x + threadIdx.x;
+     j = blockIdx.y * blockDim.y + threadIdx.y;
+     k = blockIdx.z;
+
+    a(i,j,k) = b(i,j,k) + c(i,j,k);
+}
+
+// Submit kernel
+kernel&lt;&lt;&lt;grid, tblock&gt;&gt;&gt;(a, b, c, ni, nj, nk);</code></pre>
+<p>Fortran <code>do concurrent</code></p>
+<pre class="fortran"><code>do concurrent (k=1:nk, j=1:nj, i=1:ni)
+    a(i,j,k) = b(i,j,k) + c(i,j,k)
+enddo</code></pre>
+</section>
+
+<section id="just-another-kernel" class="title-slide slide level1">
+<h1>Just Another Kernel</h1>
+<p><img data-src="img/gengpu.svg" alt="image" /></p>
+</section>
+
+<section id="do-concurrent-rules" class="title-slide slide level1">
+<h1><code>do concurrent</code> rules</h1>
+<p>Executions may occur in any order.</p>
+<pre class="fortran"><code>do concurrent (k=1:nk, j=1:nj, i=1:ni)
+    a(i,j,k) = b(i,j,k) + c(i,j,k)
+enddo</code></pre>
+<p>Cannot use order-dependent operations:</p>
+<ul>
+<li><code>a(i) = a(i-1) + 1</code></li>
+<li><code>sum = sum + a(i)</code></li>
+<li><code>print *, i</code></li>
+</ul>
+<p>But it's also a "contract" to be good (e.g. C's
+<code>restrict</code>)</p>
+</section>
+
+<section id="a-good-idea" class="title-slide slide level1">
+<h1>A good idea?</h1>
+<p>Advantages</p>
+<ul>
+<li>Simple to write and use</li>
+<li>Language-standard Fortran</li>
+<li>Single codebase for CPU and GPU</li>
+</ul>
+<p>Disadvantages</p>
+<ul>
+<li>Surrender grid/block layout to compiler</li>
+<li>Does no memory management</li>
+<li>Implementation issues still exist</li>
+</ul>
+</section>
+
+<section>
+<section id="the-reality-mom6" class="title-slide slide level1">
+<h1>The reality: MOM6</h1>
+<p>MOM6 is a challenging codebase</p>
+<ul>
+<li>Community code: Heavily nested if-blocks</li>
+<li>Bit reproducible: We don't break people's answers</li>
+<li>Diagnostics: we capture just about every stage</li>
+<li>Algorithmic: MOM is not one solver, it is dozens</li>
+<li>Large codebase: Rewrites impede development</li>
+</ul>
+</section>
+<section id="breakdown" class="slide level2">
+<h2>Breakdown</h2>
+<ul>
+<li>Over 1000 LoC</li>
+<li><code>if</code>-blocks for dozens of features</li>
+<li>Heavy derived type usage</li>
+<li>Function calls within loops</li>
+</ul>
+<p>How to deconstruct something like this?</p>
+</section></section>
+<section id="component-scaling" class="title-slide slide level1">
+<h1>Component Scaling</h1>
+<p><img data-src="img/genoa_vs_h100.svg" alt="image" /></p>
+</section>
+
+<section id="reproducibility" class="title-slide slide level1">
+<h1>Reproducibility</h1>
+<p>Solutions are bit reproducible!</p>
+</section>
+
+<section id="message-passing-support" class="title-slide slide level1">
+<h1>Message Passing Support</h1>
+<ul>
+<li>OpenMP based</li>
+<li>OpenACC required to sync device IDs</li>
+</ul>
+</section>
+
+<section id="mpi-scaling" class="title-slide slide level1">
+<h1>MPI Scaling</h1>
+<p><img data-src="img/mpi_scaling.svg" alt="image" /></p>
+</section>
+
+<section id="some-lessons" class="title-slide slide level1">
+<h1>Some Lessons</h1>
+<ul>
+<li>OpenMP / OpenACC / do concurrent are mostly equivalent
+<ul>
+<li></li>
+</ul></li>
+</ul>
+</section>
+
+<section id="functions-on-gpus" class="title-slide slide level1">
+<h1>Functions on GPUs</h1>
+<pre class="fortran" data-code="fortran
+
+"><code>subroutine gradKE(u, v, KE, KEx, KEy, k, G, GV)
+  !$omp declare target
+  type(ocean_grid_type), intent(in) :: G
+    !&lt; Ocean grid structure
+  type(verticalGrid_type), intent(in) :: GV
+    !&lt; Vertical grid structure
+  real, intent(in) :: u(:,:,:), v(:,:,:)
+    !&lt; Zonal and meridional velocity [L T-1 ~&gt; m s-1]
+  real, intent(out) :: KE(:,:)
+    !&lt; Kinetic energy per unit mass [L2 T-2 ~&gt; m2 s-2]
+  real, intent(out) :: KEx(:,:), KEy(:,:)
+    !&lt; Acceleration due to kinetic energy gradient [L T-2 ~&gt; m s-2]
+  integer, intent(in) :: k
+    !&lt; Layer number to calculate for
+
+  integer :: i, j, is, ie, js, je, Isq, Ieq, Jsq, Jeq, nz, n
+  !! Can also be declared here
+
+  is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec ; nz = GV%ke
+  Isq = G%IscB ; Ieq = G%IecB ; Jsq = G%JscB ; Jeq = G%JecB
+
+  do concurrent (j=Jsq:Jeq+1, i=Isq:Ieq+1)
+    KE(i,j) = ( ( (G%areaCu( I ,j)*(u( I ,j,k)*u( I ,j,k))) + &amp;
+                  (G%areaCu(I-1,j)*(u(I-1,j,k)*u(I-1,j,k))) ) + &amp;
+                ( (G%areaCv(i, J )*(v(i, J ,k)*v(i, J ,k))) + &amp;
+                  (G%areaCv(i,J-1)*(v(i,J-1,k)*v(i,J-1,k))) ) )*0.25*G%IareaT(i,j)
+  enddo
+
+  do concurrent (j=js:je, I=Isq:Ieq)
+    KEx(I,j) = (KE(i+1,j) - KE(i,j)) * G%IdxCu(I,j)
+  enddo
+
+  do concurrent (J=Jsq:Jeq, i=is:ie)
+    KEy(i,J) = (KE(i,j+1) - KE(i,j)) * G%IdyCv(i,J)
+  enddo
+end subroutine gradKE
+</code></pre>
+<p>Use <code>!$omp declare target</code> in specification (although
+compiler does this automatically)</p>
+</section>
+
+<section id="function-inlining" class="title-slide slide level1">
+<h1>Function Inlining</h1>
+<p><img data-src="img/coradcalc_teams.svg" alt="image" /></p>
+</section>
+
+<section id="caveats" class="title-slide slide level1">
+<h1>Caveats</h1>
+<ul>
+<li>do concurrent cannot (currently) support local arrays</li>
+<li></li>
+</ul>
+</section>
+
+<section id="objects-on-gpus" class="title-slide slide level1">
+<h1>Objects on GPUs</h1>
+
+</section>
+
+<section id="upcoming-challenges" class="title-slide slide level1">
+<h1>Upcoming challenges</h1>
+<ul>
+<li>The diagnostic mediator is IO-heavy, relies heavily on FMS, and has
+its own share of calculations (e.g. remapping)
+<ul>
+<li>Run async on CPU?</li>
+</ul></li>
+</ul>
+</section>
+
+<section id="why-pursue" class="title-slide slide level1">
+<h1>Why Pursue?</h1>
+<ul>
+<li>It's working. Impediments are overcome.</li>
+<li>Integration with existing codebase is brainless.</li>
+<li>We must seriously consider any option that works.</li>
+<li>Scientists are going to write unfriendly code. Fortran historically
+handles this well.</li>
+</ul>
+</section>
+    </div>
+  </div>
+
+  <script src="./reveal.js/dist/reveal.js"></script>
+  <script src="./reveal.js/plugin/math/math.js"></script>
+  <script src="./reveal.js/plugin/notes/notes.js"></script>
+  <script src="./reveal.js/plugin/highlight/highlight.js"></script>
+
+  <script>
+
+      // Full list of configuration options available at:
+      // https://github.com/hakimel/reveal.js#configuration
+      Reveal.initialize({
+        // Display controls in the bottom right corner
+        controls: true,
+        // Display a presentation progress bar
+        progress: true,
+        // Display the page number of the current slide
+        slideNumber: true,
+        // Push each slide change to the browser history
+        history: true,
+        // Enable keyboard shortcuts for navigation
+        keyboard: true,
+        // Enable the slide overview mode
+        overview: true,
+        // Vertical centering of slides
+        center: true,
+        // Enables touch navigation on devices with touch input
+        touch: true,
+        // Turns fragments on and off globally
+        fragments: true,
+        // Flags if we should show a help overlay when the questionmark
+        // key is pressed
+        help: true,
+        // Number of milliseconds between automatically proceeding to the
+        // next slide, disabled when set to 0, this value can be overwritten
+        // by using a data-autoslide attribute on your slides
+        autoSlide: 0,
+        // Stop auto-sliding after user input
+        autoSlideStoppable: true,
+        // Transition style
+        transition: 'slide', // none/fade/slide/convex/concave/zoom
+        // Transition speed
+        transitionSpeed: 'default', // default/fast/slow
+        // Transition style for full page slide backgrounds
+        backgroundTransition: 'fade', // none/fade/slide/convex/concave/zoom
+        // Number of slides away from the current that are visible
+        viewDistance: 3,
+        math: {
+          //mathjax: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js',
+          mathjax: 'https://cdn.jsdelivr.net/gh/mathjax/mathjax@2.7.9/MathJax.js',
+          config: 'TeX-AMS_HTML-full',
+          "HTML-CSS": {
+              preferredFont: "Neo-Euler",
+              //preferredFont: "Asana-Math",
+          },
+          //TeX: {
+          //  inlineMath: [['\\(','\\)']],
+          //  displayMath: [['\\[','\\]']],
+          //  balanceBraces: true,
+          //  processEscapes: false,
+          //  processRefs: true,
+          //  processEnvironments: true,
+          //  preview: 'TeX',
+          //  skipTags: ['script','noscript','style','textarea','pre','code'],
+          //  ignoreClass: 'tex2jax_ignore',
+          //  processClass: 'tex2jax_process'
+          //},
+        },
+
+        // Optional reveal.js plugins
+        dependencies: [
+          { src: './reveal.js/lib/js/classList.js', condition: function() { return !document.body.classList; } },
+          { src: './reveal.js/plugin/zoom/zoom.js', async: true },
+          { src: './reveal.js/plugin/notes/notes.js', async: true }
+        ],
+        plugins : [ RevealMath, RevealNotes, RevealHighlight],
+        pdfMaxPagesPerSlide: 1,
+      });
+    </script>
+    </body>
+</html>
