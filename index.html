@@ -43,7 +43,7 @@
 
     <footer style="font-size: 1pc; position: absolute; bottom: 2%; left: 2%;">
       <code><p><a
-href="https://github.com/marshallward/sewg2026.html">https://github.com/marshallward/sewg2026.html</a></p></code>
+href="https://marshallward.org/sewg2026.html">https://marshallward.org/sewg2026.html</a></p></code>
     </footer>
 
     <div class="slides">
@@ -77,17 +77,8 @@ intrinsics</h1>
 </ul>
 </section>
 
-<section id="strategy" class="title-slide slide level1">
-<h1>Strategy</h1>
-<ul>
-<li>Manual memory management</li>
-<li>do concurrent where we can</li>
-<li>OpenMP where we must</li>
-</ul>
-</section>
-
-<section id="what-is-openmp" class="title-slide slide level1">
-<h1>What is OpenMP?</h1>
+<section id="kernel-programming" class="title-slide slide level1">
+<h1>Kernel Programming</h1>
 <p>For our purposes:</p>
 <ul>
 <li>The Fortran compiler is a PTX generator</li>
@@ -137,6 +128,14 @@ enddo</code></pre>
 <code>restrict</code>)</p>
 </section>
 
+<section id="some-conveniences" class="title-slide slide level1">
+<h1>Some Conveniences</h1>
+<ul>
+<li>Locals are implicitly transferred</li>
+<li>Blocks are compiler-determined</li>
+</ul>
+</section>
+
 <section id="a-good-idea" class="title-slide slide level1">
 <h1>A good idea?</h1>
 <p>Advantages</p>
@@ -150,6 +149,17 @@ enddo</code></pre>
 <li>Surrender grid/block layout to compiler</li>
 <li>Does no memory management</li>
 <li>Implementation issues still exist</li>
+</ul>
+</section>
+
+<section id="strategy" class="title-slide slide level1">
+<h1>Strategy</h1>
+<p>Briefly explain that</p>
+<ul>
+<li>Managed memory is slow</li>
+<li>We use Manual memory management</li>
+<li>do concurrent where we can</li>
+<li>OpenMP where we must</li>
 </ul>
 </section>
 
@@ -196,14 +206,29 @@ enddo</code></pre>
 <p><img data-src="img/mpi_scaling.svg" alt="image" /></p>
 </section>
 
-<section id="some-lessons" class="title-slide slide level1">
-<h1>Some Lessons</h1>
-<ul>
-<li>OpenMP / OpenACC / do concurrent are mostly equivalent
-<ul>
-<li></li>
-</ul></li>
-</ul>
+<section id="local-arrays" class="title-slide slide level1">
+<h1>Local arrays</h1>
+<p>Do concurrent does not support local arrays (yet?), use OpenMP</p>
+<pre class="fortran"><code>!$omp target teams loop collapse(2) private(c1)
+do j=G%jsc,G%jec ; do I=Isq,Ieq ; if (G%mask2dCu(I,j) &gt; 0.) then
+  b_denom_1 = CS%h_u(I,j,1) + dt * CS%a_u(I,j,1)
+  b1 = 1.0 / (b_denom_1 + dt * CS%a_u(I,j,2))
+  d1 = b_denom_1 * b1
+  visc_rem_u(I,j,1) = b1 * CS%h_u(I,j,1)
+
+  do k=2,nz
+    c1(k) = dt * CS%a_u(I,j,K) * b1
+    b_denom_1 = CS%h_u(I,j,k) + dt * (CS%a_u(I,j,K) * d1)
+    b1 = 1.0 / (b_denom_1 + dt * CS%a_u(I,j,K+1))
+    d1 = b_denom_1 * b1
+    visc_rem_u(I,j,k) = (CS%h_u(I,j,k) + dt * CS%a_u(I,j,K) * visc_rem_u(I,j,k-1)) * b1
+  enddo
+
+  do k=nz-1,1,-1
+    visc_rem_u(I,j,k) = visc_rem_u(I,j,k) + c1(k+1) * visc_rem_u(I,j,k+1)
+  enddo
+endif ; enddo ; enddo</code></pre>
+<p>1d blocks unfortunately</p>
 </section>
 
 <section id="functions-on-gpus" class="title-slide slide level1">

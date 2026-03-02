@@ -20,18 +20,8 @@ The Team
 * Utheri Wagura (NOAA-GFDL)
 
 
-Strategy
-========
-
-* Manual memory management
-
-* do concurrent where we can
-
-* OpenMP where we must
-
-
-What is OpenMP?
-===============
+Kernel Programming
+==================
 
 For our purposes:
 
@@ -102,6 +92,14 @@ Cannot use order-dependent operations:
 But it's also a "contract" to be good (e.g. C's ``restrict``)
 
 
+Some Conveniences
+=================
+
+* Locals are implicitly transferred
+
+* Blocks are compiler-determined
+
+
 A good idea?
 ============
 
@@ -122,8 +120,24 @@ Disadvantages
 * Implementation issues still exist
 
 
+Strategy
+========
+
+Briefly explain that
+
+* Managed memory is slow
+
+* We use Manual memory management
+
+* do concurrent where we can
+
+* OpenMP where we must
+
+
 The reality: MOM6
 =================
+
+.. This is a messy slide
 
 MOM6 is a challenging codebase
 
@@ -178,12 +192,34 @@ MPI Scaling
 .. image:: img/mpi_scaling.svg
 
 
-Some Lessons
+Local arrays
 ============
 
-* OpenMP / OpenACC / do concurrent are mostly equivalent
+Do concurrent does not support local arrays (yet?), use OpenMP
 
-  *
+.. code:: fortran
+
+   !$omp target teams loop collapse(2) private(c1)
+   do j=G%jsc,G%jec ; do I=Isq,Ieq ; if (G%mask2dCu(I,j) > 0.) then
+     b_denom_1 = CS%h_u(I,j,1) + dt * CS%a_u(I,j,1)
+     b1 = 1.0 / (b_denom_1 + dt * CS%a_u(I,j,2))
+     d1 = b_denom_1 * b1
+     visc_rem_u(I,j,1) = b1 * CS%h_u(I,j,1)
+
+     do k=2,nz
+       c1(k) = dt * CS%a_u(I,j,K) * b1
+       b_denom_1 = CS%h_u(I,j,k) + dt * (CS%a_u(I,j,K) * d1)
+       b1 = 1.0 / (b_denom_1 + dt * CS%a_u(I,j,K+1))
+       d1 = b_denom_1 * b1
+       visc_rem_u(I,j,k) = (CS%h_u(I,j,k) + dt * CS%a_u(I,j,K) * visc_rem_u(I,j,k-1)) * b1
+     enddo
+
+     do k=nz-1,1,-1
+       visc_rem_u(I,j,k) = visc_rem_u(I,j,k) + c1(k+1) * visc_rem_u(I,j,k+1)
+     enddo
+   endif ; enddo ; enddo
+
+1d blocks unfortunately
 
 
 Functions on GPUs
