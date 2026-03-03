@@ -11,16 +11,11 @@ Porting MOM6 to GPUs with OpenMP and Fortran intrinsics
    This is our overall strategy for porting MOM6 to GPUs.
 
 
-Kernel Programming
-==================
+GPU Programming
+===============
 
-The basic model:
-
-* Divide solver into kernels for device
-
-* Manage kernels with host program
-
-Do it with a picture
+.. image:: img/kernel.svg
+   :width: 75%
 
 
 ``do concurrent`` kernel

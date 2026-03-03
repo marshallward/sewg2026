@@ -1,0 +1,44 @@
+style.fill: transparent
+direction: right
+
+source {
+    label: main.c
+    shape: page
+    style.font-color: white
+    style.fill: lightsteelblue
+    direction: down 
+
+    driver.label: Driver
+
+    kernel.label: Kernel\n(e.g. OpenACC)
+}
+
+kernel {
+    label: CUDA Kernel
+    shape: page
+    style.fill: lightsteelblue
+}
+
+program {
+    label: Program
+    style.font-color: white
+    style.fill: lightsteelblue
+    direction: down
+
+    obj {}
+
+    cubin.label: ".cubin"
+}
+
+source.driver -> program.obj: nvc {
+    style.stroke: white
+    style.font-color: white
+}
+source.kernel -> program.cubin: nvc {
+    style.stroke: white
+    style.font-color: white
+}
+kernel -> program.cubin: nvcc {
+    style.stroke: white
+    style.font-color: white
+}
