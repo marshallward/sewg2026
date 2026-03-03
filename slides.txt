@@ -23,15 +23,17 @@ The Team
 Kernel Programming
 ==================
 
-For our purposes:
+The basic model:
 
-* The Fortran compiler is a PTX generator
+* Divide solver into kernels for device
 
-* OpenMP is an interface to CUDA runtime, which is a PTX delivery mechanism
+* Manage kernels with host program
+
+Do it with a picture
 
 
-Kernels in Fortran
-==================
+``do concurrent`` kernel
+========================
 
 CUDA C++
 
@@ -92,16 +94,30 @@ Cannot use order-dependent operations:
 But it's also a "contract" to be good (e.g. C's ``restrict``)
 
 
-Some Conveniences
-=================
+A good idea?
+============
 
-* Locals are implicitly transferred
+Advantages
 
-* Blocks are compiler-determined
+* Simple to write and use
+
+* Language-standard Fortran
+
+* Single codebase for CPU and GPU
+
+* Locals are implicitly private
+
+Disadvantages
+
+* Surrender grid/block layout to compiler
+
+* Memory management is either hard or slow
+
+* Implementation issues still exist
 
 
-Grid/Block Mappings
-===================
+How it works
+============
 
 .. split into two?  Explain 128 threads per team
    This means 16 teams can reside in an SM.
@@ -111,7 +127,13 @@ Threads-per-block set at compile time (usually 128)
 
 Most grids and blocks are 1d: (N,1,1) x (128,1,1)
 
-But nested ``do concurrent`` can form 2d grids & blocks
+
+Grid/Block Mappings
+===================
+
+Nested ``do concurrent`` can form 2d grids & blocks
+
+.. ugh I changed the loop range, breaks the argument!!
 
 .. code:: fortran
 
@@ -129,6 +151,8 @@ For 256 x 256 x 100, this uses (804,66,1) x (32,4,1)
 A second example
 ----------------
 
+256x256x100 layout is (9,64,1) x (32,4,1)
+
 .. code:: fortran
 
    do concurrent (j=js:je)
@@ -140,27 +164,11 @@ A second example
      enddo
    enddo
 
-Layout is (9,64,1) x (32,4,1)
+nj = 64*4 = 256
 
+ni = 9*32 = 288 <- 257 rounded up to next 32-step
 
-A good idea?
-============
-
-Advantages
-
-* Simple to write and use
-
-* Language-standard Fortran
-
-* Single codebase for CPU and GPU
-
-Disadvantages
-
-* Surrender grid/block layout to compiler
-
-* Does no memory management
-
-* Implementation issues still exist
+serial k is safely moved inside the thread loop
 
 
 Strategy
@@ -235,6 +243,12 @@ MPI Scaling
 .. image:: img/mpi_scaling.svg
 
 
+Limitations to do-c
+===================
+
+Transition slide? ugh!
+
+
 Local arrays
 ============
 
@@ -268,11 +282,13 @@ No support yet for ``local(array)``, but OpenMP does
 Functions on GPUs
 =================
 
+Use ``!$omp declare target`` in specification
+(although compiler does this automatically)
+
 .. include:: src/gradKE.F90
    :code: fortran
 
-Use ``!$omp declare target`` in specification
-(although compiler does this automatically)
+But!  Funcs with derived type input do not inline!
 
 
 Function Inlining
@@ -281,16 +297,20 @@ Function Inlining
 .. image:: img/coradcalc_teams.svg
 
 
-Caveats
-=======
-
-* do concurrent cannot (currently) support local arrays
-
-*
-
-
 Objects on GPUs
 ===============
+
+Loops cannot have dynamically typed objects (``class(*)``) or virtual functions
+(``procedure :: f => some_f``).
+
+But this is not a problem unique to Fortran.
+
+
+New opportunities
+=================
+
+* async?
+* CUDA Fortran?
 
 
 Upcoming challenges
@@ -299,7 +319,7 @@ Upcoming challenges
 * The diagnostic mediator is IO-heavy, relies heavily on FMS, and has its own
   share of calculations (e.g. remapping)
 
-  * Run async on CPU?
+* 
 
 
 Why Pursue?

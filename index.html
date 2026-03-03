@@ -79,16 +79,16 @@ intrinsics</h1>
 
 <section id="kernel-programming" class="title-slide slide level1">
 <h1>Kernel Programming</h1>
-<p>For our purposes:</p>
+<p>The basic model:</p>
 <ul>
-<li>The Fortran compiler is a PTX generator</li>
-<li>OpenMP is an interface to CUDA runtime, which is a PTX delivery
-mechanism</li>
+<li>Divide solver into kernels for device</li>
+<li>Manage kernels with host program</li>
 </ul>
+<p>Do it with a picture</p>
 </section>
 
-<section id="kernels-in-fortran" class="title-slide slide level1">
-<h1>Kernels in Fortran</h1>
+<section id="do-concurrent-kernel" class="title-slide slide level1">
+<h1><code>do concurrent</code> kernel</h1>
 <p>CUDA C++</p>
 <pre class="c++"><code>// Define kernel
 __global__ kernel(a, b, c, ni, nj, nk) {
@@ -128,20 +128,33 @@ enddo</code></pre>
 <code>restrict</code>)</p>
 </section>
 
-<section id="some-conveniences" class="title-slide slide level1">
-<h1>Some Conveniences</h1>
+<section id="a-good-idea" class="title-slide slide level1">
+<h1>A good idea?</h1>
+<p>Advantages</p>
 <ul>
-<li>Locals are implicitly transferred</li>
-<li>Blocks are compiler-determined</li>
+<li>Simple to write and use</li>
+<li>Language-standard Fortran</li>
+<li>Single codebase for CPU and GPU</li>
+<li>Locals are implicitly private</li>
+</ul>
+<p>Disadvantages</p>
+<ul>
+<li>Surrender grid/block layout to compiler</li>
+<li>Memory management is either hard or slow</li>
+<li>Implementation issues still exist</li>
 </ul>
 </section>
 
-<section id="dynamic-gridsblocks" class="title-slide slide level1">
-<h1>Dynamic grids/blocks</h1>
+<section id="how-it-works" class="title-slide slide level1">
+<h1>How it works</h1>
 <p>Threads-per-block set at compile time (usually 128)</p>
 <p>Most grids and blocks are 1d: (N,1,1) x (128,1,1)</p>
-<p>But nested <code>do concurrent</code> can form 2d grids &amp;
-blocks</p>
+</section>
+
+<section>
+<section id="gridblock-mappings" class="title-slide slide level1">
+<h1>Grid/Block Mappings</h1>
+<p>Nested <code>do concurrent</code> can form 2d grids &amp; blocks</p>
 <pre class="fortran"><code>do concurrent (j=js:je)
   if (present(u_cor)) then
     do concurrent (k=1:nz, I=is:ie)
@@ -151,23 +164,21 @@ blocks</p>
 enddo</code></pre>
 <p>For 256 x 256 x 100, this uses (804,66,1) x (32,4,1)</p>
 </section>
-
-<section id="a-good-idea" class="title-slide slide level1">
-<h1>A good idea?</h1>
-<p>Advantages</p>
-<ul>
-<li>Simple to write and use</li>
-<li>Language-standard Fortran</li>
-<li>Single codebase for CPU and GPU</li>
-</ul>
-<p>Disadvantages</p>
-<ul>
-<li>Surrender grid/block layout to compiler</li>
-<li>Does no memory management</li>
-<li>Implementation issues still exist</li>
-</ul>
-</section>
-
+<section id="a-second-example" class="slide level2">
+<h2>A second example</h2>
+<p>256x256x100 layout is (9,64,1) x (32,4,1)</p>
+<pre class="fortran"><code>do concurrent (j=js:je)
+  do k=1,nz
+    do concurrent (I=is-1:ie)
+      uhbt(I,j) = uhbt(I,j) + uh0(I,j,k)
+      ubt(I,j) = ubt(I,j) + CS%frhatu(I,j,k) * u_uh0(I,j,k)
+    enddo
+  enddo
+enddo</code></pre>
+<p>nj = 64*4 = 256</p>
+<p>ni = 9*32 = 288 &lt;- 257 rounded up to next 32-step</p>
+<p>serial k is safely moved inside the thread loop</p>
+</section></section>
 <section id="strategy" class="title-slide slide level1">
 <h1>Strategy</h1>
 <p>Briefly explain that</p>
@@ -222,6 +233,11 @@ enddo</code></pre>
 <p><img data-src="img/mpi_scaling.svg" alt="image" /></p>
 </section>
 
+<section id="limitations-to-do-c" class="title-slide slide level1">
+<h1>Limitations to do-c</h1>
+<p>Transition slide? ugh!</p>
+</section>
+
 <section id="local-arrays" class="title-slide slide level1">
 <h1>Local arrays</h1>
 <p>No support yet for <code>local(array)</code>, but OpenMP does</p>
@@ -249,6 +265,8 @@ endif ; enddo ; enddo</code></pre>
 
 <section id="functions-on-gpus" class="title-slide slide level1">
 <h1>Functions on GPUs</h1>
+<p>Use <code>!$omp declare target</code> in specification (although
+compiler does this automatically)</p>
 <pre class="fortran" data-code="fortran
 
 "><code>subroutine gradKE(u, v, KE, KEx, KEy, k, G, GV)
@@ -288,8 +306,7 @@ endif ; enddo ; enddo</code></pre>
   enddo
 end subroutine gradKE
 </code></pre>
-<p>Use <code>!$omp declare target</code> in specification (although
-compiler does this automatically)</p>
+<p>But! Funcs with derived type input do not inline!</p>
 </section>
 
 <section id="function-inlining" class="title-slide slide level1">
