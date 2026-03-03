@@ -100,6 +100,49 @@ Some Conveniences
 * Blocks are compiler-determined
 
 
+Grid/Block Mappings
+===================
+
+.. split into two?  Explain 128 threads per team
+   This means 16 teams can reside in an SM.
+   They will be processed serially at best.
+
+Threads-per-block set at compile time (usually 128)
+
+Most grids and blocks are 1d: (N,1,1) x (128,1,1)
+
+But nested ``do concurrent`` can form 2d grids & blocks
+
+.. code:: fortran
+
+   do concurrent (j=js:je)
+     if (present(u_cor)) then
+       do concurrent (k=1:nz, I=is:ie)
+         u_cor(I,j,k) = u(I,j,k) + du(I,j) * visc_rem_u(I,j,k)
+       enddo
+     endif
+   enddo
+
+For 256 x 256 x 100, this uses (804,66,1) x (32,4,1)
+
+
+A second example
+----------------
+
+.. code:: fortran
+
+   do concurrent (j=js:je)
+     do k=1,nz
+       do concurrent (I=is-1:ie)
+         uhbt(I,j) = uhbt(I,j) + uh0(I,j,k)
+         ubt(I,j) = ubt(I,j) + CS%frhatu(I,j,k) * u_uh0(I,j,k)
+       enddo
+     enddo
+   enddo
+
+Layout is (9,64,1) x (32,4,1)
+
+
 A good idea?
 ============
 
@@ -195,27 +238,27 @@ MPI Scaling
 Local arrays
 ============
 
-Do concurrent does not support local arrays (yet?), use OpenMP
+No support yet for ``local(array)``, but OpenMP does
 
 .. code:: fortran
 
    !$omp target teams loop collapse(2) private(c1)
-   do j=G%jsc,G%jec ; do I=Isq,Ieq ; if (G%mask2dCu(I,j) > 0.) then
-     b_denom_1 = CS%h_u(I,j,1) + dt * CS%a_u(I,j,1)
-     b1 = 1.0 / (b_denom_1 + dt * CS%a_u(I,j,2))
+   do j=js,je ; do i=is,ie ; if (mask(i,j) > 0.) then
+     b_denom_1 = h(i,j,1) + a(i,j,1)
+     b1 = 1. / (b_denom_1 + a(i,j,2))
      d1 = b_denom_1 * b1
-     visc_rem_u(I,j,1) = b1 * CS%h_u(I,j,1)
+     visc_rem(i,j,1) = b1 * h(i,j,1)
 
      do k=2,nz
-       c1(k) = dt * CS%a_u(I,j,K) * b1
-       b_denom_1 = CS%h_u(I,j,k) + dt * (CS%a_u(I,j,K) * d1)
-       b1 = 1.0 / (b_denom_1 + dt * CS%a_u(I,j,K+1))
+       c1(k) = a(i,j,k) * b1
+       b_denom_1 = h(i,j,k) + (a(i,j,k) * d1)
+       b1 = 1. / (b_denom_1 + a(i,j,k+1))
        d1 = b_denom_1 * b1
-       visc_rem_u(I,j,k) = (CS%h_u(I,j,k) + dt * CS%a_u(I,j,K) * visc_rem_u(I,j,k-1)) * b1
+       visc_rem(i,j,k) = (h(i,j,k) + a(i,j,k) * visc_rem(i,j,k-1)) * b1
      enddo
 
      do k=nz-1,1,-1
-       visc_rem_u(I,j,k) = visc_rem_u(I,j,k) + c1(k+1) * visc_rem_u(I,j,k+1)
+       visc_rem(i,j,k) = visc_rem(i,j,k) + c1(k+1) * visc_rem(i,j,k+1)
      enddo
    endif ; enddo ; enddo
 

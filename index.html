@@ -136,6 +136,22 @@ enddo</code></pre>
 </ul>
 </section>
 
+<section id="dynamic-gridsblocks" class="title-slide slide level1">
+<h1>Dynamic grids/blocks</h1>
+<p>Threads-per-block set at compile time (usually 128)</p>
+<p>Most grids and blocks are 1d: (N,1,1) x (128,1,1)</p>
+<p>But nested <code>do concurrent</code> can form 2d grids &amp;
+blocks</p>
+<pre class="fortran"><code>do concurrent (j=js:je)
+  if (present(u_cor)) then
+    do concurrent (k=1:nz, I=is:ie)
+      u_cor(I,j,k) = u(I,j,k) + du(I,j) * visc_rem_u(I,j,k)
+    enddo
+  endif
+enddo</code></pre>
+<p>For 256 x 256 x 100, this uses (804,66,1) x (32,4,1)</p>
+</section>
+
 <section id="a-good-idea" class="title-slide slide level1">
 <h1>A good idea?</h1>
 <p>Advantages</p>
@@ -208,24 +224,24 @@ enddo</code></pre>
 
 <section id="local-arrays" class="title-slide slide level1">
 <h1>Local arrays</h1>
-<p>Do concurrent does not support local arrays (yet?), use OpenMP</p>
+<p>No support yet for <code>local(array)</code>, but OpenMP does</p>
 <pre class="fortran"><code>!$omp target teams loop collapse(2) private(c1)
-do j=G%jsc,G%jec ; do I=Isq,Ieq ; if (G%mask2dCu(I,j) &gt; 0.) then
-  b_denom_1 = CS%h_u(I,j,1) + dt * CS%a_u(I,j,1)
-  b1 = 1.0 / (b_denom_1 + dt * CS%a_u(I,j,2))
+do j=js,je ; do i=is,ie ; if (mask(i,j) &gt; 0.) then
+  b_denom_1 = h(i,j,1) + a(i,j,1)
+  b1 = 1. / (b_denom_1 + a(i,j,2))
   d1 = b_denom_1 * b1
-  visc_rem_u(I,j,1) = b1 * CS%h_u(I,j,1)
+  visc_rem(i,j,1) = b1 * h(i,j,1)
 
   do k=2,nz
-    c1(k) = dt * CS%a_u(I,j,K) * b1
-    b_denom_1 = CS%h_u(I,j,k) + dt * (CS%a_u(I,j,K) * d1)
-    b1 = 1.0 / (b_denom_1 + dt * CS%a_u(I,j,K+1))
+    c1(k) = a(i,j,k) * b1
+    b_denom_1 = h(i,j,k) + (a(i,j,k) * d1)
+    b1 = 1. / (b_denom_1 + a(i,j,k+1))
     d1 = b_denom_1 * b1
-    visc_rem_u(I,j,k) = (CS%h_u(I,j,k) + dt * CS%a_u(I,j,K) * visc_rem_u(I,j,k-1)) * b1
+    visc_rem(i,j,k) = (h(i,j,k) + a(i,j,k) * visc_rem(i,j,k-1)) * b1
   enddo
 
   do k=nz-1,1,-1
-    visc_rem_u(I,j,k) = visc_rem_u(I,j,k) + c1(k+1) * visc_rem_u(I,j,k+1)
+    visc_rem(i,j,k) = visc_rem(i,j,k) + c1(k+1) * visc_rem(i,j,k+1)
   enddo
 endif ; enddo ; enddo</code></pre>
 <p>1d blocks unfortunately</p>
