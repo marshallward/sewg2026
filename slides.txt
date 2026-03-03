@@ -11,15 +11,6 @@ Porting MOM6 to GPUs with OpenMP and Fortran intrinsics
    This is our overall strategy for porting MOM6 to GPUs.
 
 
-The Team
-========
-
-* Me (NOAA-GFDL)
-* Ed Yang (ACCESS-NRI)
-* Jorge Galvez Vallejo (NCI Australia)
-* Utheri Wagura (NOAA-GFDL)
-
-
 Kernel Programming
 ==================
 
@@ -94,30 +85,27 @@ Cannot use order-dependent operations:
 But it's also a "contract" to be good (e.g. C's ``restrict``)
 
 
-A good idea?
-============
+Memory Management
+=================
 
-Advantages
+Managed memory chokes on complex codes.
 
-* Simple to write and use
+We do manual memory
 
-* Language-standard Fortran
+.. code:: fortran
 
-* Single codebase for CPU and GPU
+   !$omp target enter data map(to: a, b)
+   !$omp target enter data map(alloc: c)
 
-* Locals are implicitly private
+   do concurrent ..
+   enddo
 
-Disadvantages
-
-* Surrender grid/block layout to compiler
-
-* Memory management is either hard or slow
-
-* Implementation issues still exist
+   !$omp target exit data map(from: c)
+   !$omp target exit data map(delete: a, b)
 
 
-How it works
-============
+What it Makes
+=============
 
 .. split into two?  Explain 128 threads per team
    This means 16 teams can reside in an SM.
@@ -174,15 +162,13 @@ serial k is safely moved inside the thread loop
 Strategy
 ========
 
-Briefly explain that
+* Keep as much on the GPU as possible
 
-* Managed memory is slow
-
-* We use Manual memory management
+* Manual memory management (for now)
 
 * do concurrent where we can
 
-* OpenMP where we must
+* OpenMP (or OpenACC) where we must
 
 
 The reality: MOM6
@@ -217,8 +203,33 @@ Breakdown
 How to deconstruct something like this?
 
 
-Component Scaling
-=================
+Double-Gyre Test
+================
+
+Describe the model here
+
+* 32x32, 100 level, scaled up
+
+  * CPU: Weak scaling to 192, then fixed # of ranks
+
+  * GPU: Whatever you get!
+
+CPU: Zen 4 Genoa, 96-core (EPYC 9654)
+
+GPU: H100
+
+
+The Team
+========
+
+* Me (NOAA-GFDL)
+* Ed Yang (ACCESS-NRI)
+* Jorge Galvez Vallejo (NCI Australia)
+* Utheri Wagura (NOAA-GFDL)
+
+
+Current Timings
+===============
 
 .. image:: img/genoa_vs_h100.svg
 
@@ -226,7 +237,11 @@ Component Scaling
 Reproducibility
 ===============
 
-Solutions are bit reproducible!
+.. image:: img/repro.svg
+
+NVIDIA CPU and GPU give bit-identical results
+
+.. *Except!* ``(a*b)+c`` *does not suppress FMAs*
 
 
 FMS MPI Support
@@ -236,6 +251,8 @@ FMS MPI Support
 
 Message passing FMS buffers are on GPUs
 
+.. Multinode requires OpenACC and OpenMP to reconcile node IDs
+
 
 MPI Scaling
 ===========
@@ -243,16 +260,34 @@ MPI Scaling
 .. image:: img/mpi_scaling.svg
 
 
-Limitations to do-c
-===================
+Viable Solution?
+================
 
-Transition slide? ugh!
+* **Simple syntax**: Easy to write and maintain
+
+* **Standard Fortran**: If it breaks, they must fix!
+
+* Single codebase for CPU and GPU
+
+* Possible "smart" block geometry
+
+But there are limitations
+
+.. - Disadvantages
+
+.. * Trust compiler's grids/blocks
+
+.. * Automatic memory is slow
+
+.. * Manual memory is tedious
+
+.. * Implementation issues still exist
 
 
 Local arrays
 ============
 
-No support yet for ``local(array)``, but OpenMP does
+No support yet for ``local(array)``, but OpenMP works
 
 .. code:: fortran
 
@@ -276,60 +311,91 @@ No support yet for ``local(array)``, but OpenMP does
      enddo
    endif ; enddo ; enddo
 
-1d blocks unfortunately
-
 
 Functions on GPUs
 =================
 
 Use ``!$omp declare target`` in specification
-(although compiler does this automatically)
 
 .. include:: src/gradKE.F90
    :code: fortran
 
-But!  Funcs with derived type input do not inline!
+(although compiler does this automatically)
 
 
 Function Inlining
 =================
 
+Functions with derived type input do not inline
+
 .. image:: img/coradcalc_teams.svg
+
+Replacing arguments is significantly faster!
 
 
 Objects on GPUs
 ===============
 
-Loops cannot have dynamically typed objects (``class(*)``) or virtual functions
-(``procedure :: f => some_f``).
+Dynamic object-oriented structures are volatile
+
+.. code:: fortran
+
+   class(EOS_base), allocatable :: type
+
+.. code:: fortran
+
+   procedure(i_density), deferred :: density
+
+.. code:: fortran
+
+   real elemental function density_linear(this, T, S, p)
+     class(EOS), intent(in) :: this
+     real, intent(in) :: T, S, p
+
+     density_elem_linear = this%Rho_T0_S0 + this%dRho_dT * T &
+         + this%dRho_dS * S + this%dRho_dp * p
+   end function density_linear
 
 But this is not a problem unique to Fortran.
+
+
+Derived Type Alloc
+==================
+
+TODO
+
+Arrays in derived types should be handled separately (no deep copies).
+
+And ``!$omp target update (CS)`` can clobber existing array pointers, be
+careful!
 
 
 New opportunities
 =================
 
+TODO
+
 * async?
+
 * CUDA Fortran?
 
 
 Upcoming challenges
 ===================
 
-* The diagnostic mediator is IO-heavy, relies heavily on FMS, and has its own
-  share of calculations (e.g. remapping)
+* The next milestone (``benchmark``) touches many of the above issues.
 
-* 
+* We cannot write diagnostics!  MOM6 has a complex diagnostic manager which
+  will require complex design decisions.
+
+* ...?
 
 
 Why Pursue?
 ===========
 
-* It's working.  Impediments are overcome.
+* It's working.  Numbers are competitive and still improving.
 
-* Integration with existing codebase is brainless.
+* Reproducible.  Operational models can continue.
 
-* We must seriously consider any option that works.
-
-* Scientists are going to write unfriendly code.  Fortran historically handles
-  this well.
+* Leverage Fortran's history to trust the compiler.

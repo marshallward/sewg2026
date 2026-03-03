@@ -67,16 +67,6 @@ intrinsics</h1>
   </aside>
 </section>
 
-<section id="the-team" class="title-slide slide level1">
-<h1>The Team</h1>
-<ul>
-<li>Me (NOAA-GFDL)</li>
-<li>Ed Yang (ACCESS-NRI)</li>
-<li>Jorge Galvez Vallejo (NCI Australia)</li>
-<li>Utheri Wagura (NOAA-GFDL)</li>
-</ul>
-</section>
-
 <section id="kernel-programming" class="title-slide slide level1">
 <h1>Kernel Programming</h1>
 <p>The basic model:</p>
@@ -128,25 +118,22 @@ enddo</code></pre>
 <code>restrict</code>)</p>
 </section>
 
-<section id="a-good-idea" class="title-slide slide level1">
-<h1>A good idea?</h1>
-<p>Advantages</p>
-<ul>
-<li>Simple to write and use</li>
-<li>Language-standard Fortran</li>
-<li>Single codebase for CPU and GPU</li>
-<li>Locals are implicitly private</li>
-</ul>
-<p>Disadvantages</p>
-<ul>
-<li>Surrender grid/block layout to compiler</li>
-<li>Memory management is either hard or slow</li>
-<li>Implementation issues still exist</li>
-</ul>
+<section id="memory-management" class="title-slide slide level1">
+<h1>Memory Management</h1>
+<p>Managed memory chokes on complex codes.</p>
+<p>We do manual memory</p>
+<pre class="fortran"><code>!$omp target enter data map(to: a, b)
+!$omp target enter data map(alloc: c)
+
+do concurrent ..
+enddo
+
+!$omp target exit data map(from: c)
+!$omp target exit data map(delete: a, b)</code></pre>
 </section>
 
-<section id="how-it-works" class="title-slide slide level1">
-<h1>How it works</h1>
+<section id="what-it-makes" class="title-slide slide level1">
+<h1>What it Makes</h1>
 <p>Threads-per-block set at compile time (usually 128)</p>
 <p>Most grids and blocks are 1d: (N,1,1) x (128,1,1)</p>
 </section>
@@ -181,12 +168,11 @@ enddo</code></pre>
 </section></section>
 <section id="strategy" class="title-slide slide level1">
 <h1>Strategy</h1>
-<p>Briefly explain that</p>
 <ul>
-<li>Managed memory is slow</li>
-<li>We use Manual memory management</li>
+<li>Keep as much on the GPU as possible</li>
+<li>Manual memory management (for now)</li>
 <li>do concurrent where we can</li>
-<li>OpenMP where we must</li>
+<li>OpenMP (or OpenACC) where we must</li>
 </ul>
 </section>
 
@@ -212,14 +198,39 @@ enddo</code></pre>
 </ul>
 <p>How to deconstruct something like this?</p>
 </section></section>
-<section id="component-scaling" class="title-slide slide level1">
-<h1>Component Scaling</h1>
+<section id="double-gyre-test" class="title-slide slide level1">
+<h1>Double-Gyre Test</h1>
+<p>Describe the model here</p>
+<ul>
+<li>32x32, 100 level, scaled up
+<ul>
+<li>CPU: Weak scaling to 192, then fixed # of ranks</li>
+<li>GPU: Whatever you get!</li>
+</ul></li>
+</ul>
+<p>CPU: Zen 4 Genoa, 96-core (EPYC 9654)</p>
+<p>GPU: H100</p>
+</section>
+
+<section id="the-team" class="title-slide slide level1">
+<h1>The Team</h1>
+<ul>
+<li>Me (NOAA-GFDL)</li>
+<li>Ed Yang (ACCESS-NRI)</li>
+<li>Jorge Galvez Vallejo (NCI Australia)</li>
+<li>Utheri Wagura (NOAA-GFDL)</li>
+</ul>
+</section>
+
+<section id="current-timings" class="title-slide slide level1">
+<h1>Current Timings</h1>
 <p><img data-src="img/genoa_vs_h100.svg" alt="image" /></p>
 </section>
 
 <section id="reproducibility" class="title-slide slide level1">
 <h1>Reproducibility</h1>
-<p>Solutions are bit reproducible!</p>
+<p><img data-src="img/repro.svg" alt="image" /></p>
+<p>NVIDIA CPU and GPU give bit-identical results</p>
 </section>
 
 <section id="fms-mpi-support" class="title-slide slide level1">
@@ -233,14 +244,20 @@ enddo</code></pre>
 <p><img data-src="img/mpi_scaling.svg" alt="image" /></p>
 </section>
 
-<section id="limitations-to-do-c" class="title-slide slide level1">
-<h1>Limitations to do-c</h1>
-<p>Transition slide? ugh!</p>
+<section id="viable-solution" class="title-slide slide level1">
+<h1>Viable Solution?</h1>
+<ul>
+<li><strong>Simple syntax</strong>: Easy to write and maintain</li>
+<li><strong>Standard Fortran</strong>: If it breaks, they must fix!</li>
+<li>Single codebase for CPU and GPU</li>
+<li>Possible "smart" block geometry</li>
+</ul>
+<p>But there are limitations</p>
 </section>
 
 <section id="local-arrays" class="title-slide slide level1">
 <h1>Local arrays</h1>
-<p>No support yet for <code>local(array)</code>, but OpenMP does</p>
+<p>No support yet for <code>local(array)</code>, but OpenMP works</p>
 <pre class="fortran"><code>!$omp target teams loop collapse(2) private(c1)
 do j=js,je ; do i=is,ie ; if (mask(i,j) &gt; 0.) then
   b_denom_1 = h(i,j,1) + a(i,j,1)
@@ -260,13 +277,11 @@ do j=js,je ; do i=is,ie ; if (mask(i,j) &gt; 0.) then
     visc_rem(i,j,k) = visc_rem(i,j,k) + c1(k+1) * visc_rem(i,j,k+1)
   enddo
 endif ; enddo ; enddo</code></pre>
-<p>1d blocks unfortunately</p>
 </section>
 
 <section id="functions-on-gpus" class="title-slide slide level1">
 <h1>Functions on GPUs</h1>
-<p>Use <code>!$omp declare target</code> in specification (although
-compiler does this automatically)</p>
+<p>Use <code>!$omp declare target</code> in specification</p>
 <pre class="fortran" data-code="fortran
 
 "><code>subroutine gradKE(u, v, KE, KEx, KEy, k, G, GV)
@@ -306,46 +321,66 @@ compiler does this automatically)</p>
   enddo
 end subroutine gradKE
 </code></pre>
-<p>But! Funcs with derived type input do not inline!</p>
+<p>(although compiler does this automatically)</p>
 </section>
 
 <section id="function-inlining" class="title-slide slide level1">
 <h1>Function Inlining</h1>
+<p>Functions with derived type input do not inline</p>
 <p><img data-src="img/coradcalc_teams.svg" alt="image" /></p>
-</section>
-
-<section id="caveats" class="title-slide slide level1">
-<h1>Caveats</h1>
-<ul>
-<li>do concurrent cannot (currently) support local arrays</li>
-<li></li>
-</ul>
+<p>Replacing arguments is significantly faster!</p>
 </section>
 
 <section id="objects-on-gpus" class="title-slide slide level1">
 <h1>Objects on GPUs</h1>
+<p>Dynamic object-oriented structures are volatile</p>
+<pre class="fortran"><code>class(EOS_base), allocatable :: type</code></pre>
+<pre class="fortran"><code>procedure(i_density), deferred :: density</code></pre>
+<pre class="fortran"><code>real elemental function density_linear(this, T, S, p)
+  class(EOS), intent(in) :: this
+  real, intent(in) :: T, S, p
 
+  density_elem_linear = this%Rho_T0_S0 + this%dRho_dT * T &amp;
+      + this%dRho_dS * S + this%dRho_dp * p
+end function density_linear</code></pre>
+<p>But this is not a problem unique to Fortran.</p>
+</section>
+
+<section id="derived-type-alloc" class="title-slide slide level1">
+<h1>Derived Type Alloc</h1>
+<p>TODO</p>
+<p>Arrays in derived types should be handled separately (no deep
+copies).</p>
+<p>And <code>!$omp target update (CS)</code> can clobber existing array
+pointers, be careful!</p>
+</section>
+
+<section id="new-opportunities" class="title-slide slide level1">
+<h1>New opportunities</h1>
+<p>TODO</p>
+<ul>
+<li>async?</li>
+<li>CUDA Fortran?</li>
+</ul>
 </section>
 
 <section id="upcoming-challenges" class="title-slide slide level1">
 <h1>Upcoming challenges</h1>
 <ul>
-<li>The diagnostic mediator is IO-heavy, relies heavily on FMS, and has
-its own share of calculations (e.g. remapping)
-<ul>
-<li>Run async on CPU?</li>
-</ul></li>
+<li>The next milestone (<code>benchmark</code>) touches many of the
+above issues.</li>
+<li>We cannot write diagnostics! MOM6 has a complex diagnostic manager
+which will require complex design decisions.</li>
+<li>...?</li>
 </ul>
 </section>
 
 <section id="why-pursue" class="title-slide slide level1">
 <h1>Why Pursue?</h1>
 <ul>
-<li>It's working. Impediments are overcome.</li>
-<li>Integration with existing codebase is brainless.</li>
-<li>We must seriously consider any option that works.</li>
-<li>Scientists are going to write unfriendly code. Fortran historically
-handles this well.</li>
+<li>It's working. Numbers are competitive and still improving.</li>
+<li>Reproducible. Operational models can continue.</li>
+<li>Leverage Fortran's history to trust the compiler.</li>
 </ul>
 </section>
     </div>

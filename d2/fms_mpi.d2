@@ -34,9 +34,9 @@ GPU2 {
     buffer -> compute
 }
 
-GPU1.buffer -> GPU2.buffer: nvlink {
+GPU1.buffer -> GPU2.buffer: NVLink {
     style.stroke: white
-    style.stroke-width: 4
+    style.stroke-width: 6
     style.font-color: white
     style.animated: true
 }
@@ -46,7 +46,7 @@ GPU1.buffer -> RAM1 {
     style.font-color: white
 }
 
-RAM1 -> RAM2: MPI {
+RAM1 -> RAM2: Infiniband {
     style.stroke: white
     style.font-color: white
     style.animated: true
