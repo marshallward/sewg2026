@@ -69,7 +69,7 @@ intrinsics</h1>
 
 <section id="gpu-programming" class="title-slide slide level1">
 <h1>GPU Programming</h1>
-<p><img data-src="img/kernel.svg" style="width:75.0%" alt="image" /></p>
+<p><img data-src="img/kernel.svg" style="width:60.0%" alt="image" /></p>
 </section>
 
 <section id="do-concurrent-kernel" class="title-slide slide level1">
@@ -90,6 +90,21 @@ kernel&lt;&lt;&lt;grid, tblock&gt;&gt;&gt;(a, b, c, ni, nj, nk);</code></pre>
 <pre class="fortran"><code>do concurrent (k=1:nk, j=1:nj, i=1:ni)
     a(i,j,k) = b(i,j,k) + c(i,j,k)
 enddo</code></pre>
+</section>
+
+<section id="nvidias-do-concurrent" class="title-slide slide level1">
+<h1>NVIDIA's <code>do concurrent</code></h1>
+<p>When porting to GPUS, the <code>do concurrent</code> block</p>
+<pre class="fortran"><code>do concurrent (k=1:nz, j=js:je, I=Isq:Ieq)
+  u_bc_accel(I,j,k) = CAu_pred(I,j,k) + PFu(I,j,k) + diffu(I,j,k)
+enddo</code></pre>
+<p>is converted to the OpenACC kernel</p>
+<pre class="fortran"><code>!$acc parallel loop collapse(3) vector_length(128)
+do k=1,nz ; do j=js,je ; do I=Isq,Ieq
+  u_bc_accel(I,j,k) = CAu_pred(I,j,k) + PFu(I,j,k) + diffu(I,j,k)
+enddo ; enddo ; enddo
+!$acc end parallel loop</code></pre>
+<p>CUDA threads-per-block default is 128.</p>
 </section>
 
 <section id="just-another-kernel" class="title-slide slide level1">
@@ -125,12 +140,6 @@ enddo
 
 !$omp target exit data map(from: c)
 !$omp target exit data map(delete: a, b)</code></pre>
-</section>
-
-<section id="what-it-makes" class="title-slide slide level1">
-<h1>What it Makes</h1>
-<p>Threads-per-block set at compile time (usually 128)</p>
-<p>Most grids and blocks are 1d: (N,1,1) x (128,1,1)</p>
 </section>
 
 <section>
