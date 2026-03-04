@@ -194,36 +194,28 @@ Return result to host
    !$omp target exit data map(from: c) map(delete: a, b)
 
 
-The reality: MOM6
-=================
+MOM6 Codebase
+=============
 
-.. This is a messy slide
+* Community code.  Changes affect many others
 
-MOM6 is a challenging codebase
+* Large codebase.  Major rewrites are costly
 
-* Community code: Heavily nested if-blocks
+* Algorithmic. MOM is not one solver, it is dozens
 
-* Bit reproducible: We don't break people's answers
-
-* Diagnostics: we capture just about every stage
-
-* Algorithmic: MOM is not one solver, it is dozens
-
-* Large codebase: Rewrites impede development
+* Diagnostics.  Many intermediate fields are saved
 
 
 Breakdown
 ---------
 
-* Over 1000 LoC
+* Kernels may be over 1000 LoC
 
-* ``if``-blocks for dozens of features
+* ``if``-blocks manage model features
 
-* Heavy derived type usage
+* Heavy use of derived types, even objects
 
-* Function calls within loops
-
-How to deconstruct something like this?
+* Kernels contain function calls
 
 
 The Team
@@ -413,15 +405,29 @@ pointers!
 Function Inlining
 =================
 
-TODO
+.. code:: fortran
+
+   do concurrent (k=1:nz)
+      do concurrent (J=Jsq-1:Jeq+1, I=Isq-1:Ieq+1)
+        dvdx(I,J) = (v(i+1,J,k)*G%dyCv(i+1,J)) - (v(i,J,k)*G%dyCv(i,J))
+        dudy(I,J) = (u(I,j+1,k)*G%dxCu(I,j+1)) - (u(I,j,k)*G%dxCu(I,j))
+      enddo
+
+      ! Derived types: OBC, G, GV, US, CS
+      call gradKE(u, v, h, KE, KEx, KEy, k, OBC, G, GV, US, CS)
+
+      ! ...
+   enddo
 
 Function calls do not inline if derived types are passed.
 
+If it won't inline, then it won't distribute over SMs.
 
-Objects on GPUs
-===============
 
-Dynamic object-oriented structures are volatile
+No Objects on GPUs
+==================
+
+Dynamic object-oriented constructs are volatile
 
 .. code:: fortran
 
