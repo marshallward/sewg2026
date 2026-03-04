@@ -328,8 +328,7 @@ endif ; enddo ; enddo</code></pre>
 <p>Derived types and their arrays are handled separately.</p>
 <pre class="fortran"><code>!$omp target enter data map(to: G)
 !$omp target enter data map(to: G%dxT, G%dxCu, G%dxCv, G%dxBu)</code></pre>
-<p>Care must be taken when updating derived types, or one can overwrite
-the array pointers!</p>
+<p>Care must be taken when updating derived types</p>
 <pre class="fortran"><code>! Transfer CS and its scalars
 !$omp target enter data map(to CS)
 
@@ -343,6 +342,7 @@ the array pointers!</p>
 
 <section id="function-inlining" class="title-slide slide level1">
 <h1>Function Inlining</h1>
+<p>Kernel performance depends on inline of GPU functions</p>
 <pre class="fortran"><code>do concurrent (k=1:nz)
    do concurrent (J=Jsq-1:Jeq+1, I=Isq-1:Ieq+1)
      dvdx(I,J) = (v(i+1,J,k)*G%dyCv(i+1,J)) - (v(i,J,k)*G%dyCv(i,J))
@@ -354,8 +354,7 @@ the array pointers!</p>
 
    ! ...
 enddo</code></pre>
-<p>Function calls do not inline if derived types are passed.</p>
-<p>If it won't inline, then it won't distribute over SMs.</p>
+<p>But function calls do not inline if they pass derived types</p>
 </section>
 
 <section id="no-objects-on-gpus" class="title-slide slide level1">
@@ -378,8 +377,8 @@ end function density_linear</code></pre>
 
 </section>
 
-<section id="function-inlining-1" class="title-slide slide level1">
-<h1>Function Inlining</h1>
+<section id="team-parallelization" class="title-slide slide level1">
+<h1>Team parallelization</h1>
 <p><img data-src="img/coradcalc_teams.svg" alt="image" /></p>
 <p>Functions with derived type input do not inline. Removing these
 arguments improves performance.</p>

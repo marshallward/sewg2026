@@ -386,8 +386,7 @@ Derived types and their arrays are handled separately.
    !$omp target enter data map(to: G)
    !$omp target enter data map(to: G%dxT, G%dxCu, G%dxCv, G%dxBu)
 
-Care must be taken when updating derived types, or one can overwrite the array
-pointers!
+Care must be taken when updating derived types
 
 .. code:: fortran
 
@@ -405,6 +404,8 @@ pointers!
 Function Inlining
 =================
 
+Kernel performance depends on inline of GPU functions
+
 .. code:: fortran
 
    do concurrent (k=1:nz)
@@ -419,9 +420,7 @@ Function Inlining
       ! ...
    enddo
 
-Function calls do not inline if derived types are passed.
-
-If it won't inline, then it won't distribute over SMs.
+But function calls do not inline if they pass derived types
 
 
 No Objects on GPUs
@@ -456,8 +455,8 @@ Recent Improvements
 .. ugh transition slide!
 
 
-Function Inlining
-=================
+Team parallelization
+====================
 
 .. image:: img/coradcalc_teams.svg
 
