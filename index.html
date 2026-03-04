@@ -94,17 +94,17 @@ enddo</code></pre>
 
 <section id="nvidias-do-concurrent" class="title-slide slide level1">
 <h1>NVIDIA's <code>do concurrent</code></h1>
-<p>When porting to GPUS, the <code>do concurrent</code> block</p>
+<p>On GPUs, the <code>do concurrent</code> block</p>
 <pre class="fortran"><code>do concurrent (k=1:nz, j=js:je, I=Isq:Ieq)
   u_bc_accel(I,j,k) = CAu_pred(I,j,k) + PFu(I,j,k) + diffu(I,j,k)
 enddo</code></pre>
-<p>is converted to the OpenACC kernel</p>
+<p>is converted to an OpenACC kernel.</p>
 <pre class="fortran"><code>!$acc parallel loop collapse(3) vector_length(128)
 do k=1,nz ; do j=js,je ; do I=Isq,Ieq
   u_bc_accel(I,j,k) = CAu_pred(I,j,k) + PFu(I,j,k) + diffu(I,j,k)
 enddo ; enddo ; enddo
 !$acc end parallel loop</code></pre>
-<p>CUDA threads-per-block default is 128.</p>
+<p>CUDA threads-per-block is set to 128.</p>
 </section>
 
 <section id="just-another-kernel" class="title-slide slide level1">
@@ -114,7 +114,7 @@ enddo ; enddo ; enddo
 
 <section id="do-concurrent-rules" class="title-slide slide level1">
 <h1><code>do concurrent</code> rules</h1>
-<p>Executions may occur in any order.</p>
+<p>Execution may occur in any order.</p>
 <pre class="fortran"><code>do concurrent (k=1:nk, j=1:nj, i=1:ni)
     a(i,j,k) = b(i,j,k) + c(i,j,k)
 enddo</code></pre>
@@ -359,15 +359,18 @@ copies).</p>
 pointers, be careful!</p>
 </section>
 
-<section id="new-opportunities" class="title-slide slide level1">
-<h1>New opportunities</h1>
-<p>TODO</p>
-<ul>
-<li>async?</li>
-<li>CUDA Fortran?</li>
-</ul>
+<section>
+<section id="async-kernels" class="title-slide slide level1">
+<h1>Async kernels</h1>
+<p><img data-src="img/async1.png" alt="image" /></p>
+<p><img data-src="img/async2.png" alt="image" /></p>
+<p>Using <code>async</code> allows kernel overhead of one kernel to
+overlap with another.</p>
 </section>
-
+<section id="async-speedup" class="slide level2">
+<h2>Async speedup</h2>
+<p><img data-src="img/async_speedup.png" alt="image" /></p>
+</section></section>
 <section id="upcoming-challenges" class="title-slide slide level1">
 <h1>Upcoming challenges</h1>
 <ul>

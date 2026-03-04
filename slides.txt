@@ -49,7 +49,7 @@ Fortran ``do concurrent``
 NVIDIA's ``do concurrent``
 ==========================
 
-When porting to GPUS, the ``do concurrent`` block
+On GPUs, the ``do concurrent`` block
 
 .. code:: fortran
 
@@ -57,7 +57,7 @@ When porting to GPUS, the ``do concurrent`` block
      u_bc_accel(I,j,k) = CAu_pred(I,j,k) + PFu(I,j,k) + diffu(I,j,k)
    enddo
 
-is converted to the OpenACC kernel
+is converted to an OpenACC kernel.
 
 .. code:: fortran
 
@@ -67,7 +67,7 @@ is converted to the OpenACC kernel
    enddo ; enddo ; enddo
    !$acc end parallel loop
 
-CUDA threads-per-block default is 128.
+CUDA threads-per-block is set to 128.
 
 
 Just Another Kernel
@@ -79,7 +79,7 @@ Just Another Kernel
 ``do concurrent`` rules
 =======================
 
-Executions may occur in any order.
+Execution may occur in any order.
 
 .. "The execution order of the iterations can be left indeterminate..."
 
@@ -377,14 +377,23 @@ And ``!$omp target update (CS)`` can clobber existing array pointers, be
 careful!
 
 
-New opportunities
-=================
+Async kernels
+=============
 
-TODO
+.. image:: img/async1.png
 
-* async?
+.. image:: img/async2.png
 
-* CUDA Fortran?
+Using ``async`` allows kernel overhead of one kernel to overlap with
+another.
+
+
+Async speedup
+-------------
+
+
+.. image:: img/async_speedup.png
+
 
 
 Upcoming challenges
