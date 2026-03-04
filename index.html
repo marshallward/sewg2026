@@ -70,6 +70,13 @@ intrinsics</h1>
 <section id="gpu-programming" class="title-slide slide level1">
 <h1>GPU Programming</h1>
 <p><img data-src="img/kernel.svg" style="width:60.0%" alt="image" /></p>
+<p>Separate solver into units of work (i.e. kernels)</p>
+</section>
+
+<section id="kernel-types" class="title-slide slide level1">
+<h1>Kernel Types</h1>
+<p><img data-src="img/gengpu.svg" style="width:80.0%" alt="image" /></p>
+<p>Many ways to specify kernels, each with pros and cons</p>
 </section>
 
 <section id="do-concurrent-kernel" class="title-slide slide level1">
@@ -92,26 +99,6 @@ kernel&lt;&lt;&lt;grid, tblock&gt;&gt;&gt;(a, b, c, ni, nj, nk);</code></pre>
 enddo</code></pre>
 </section>
 
-<section id="nvidias-do-concurrent" class="title-slide slide level1">
-<h1>NVIDIA's <code>do concurrent</code></h1>
-<p>On GPUs, the <code>do concurrent</code> block</p>
-<pre class="fortran"><code>do concurrent (k=1:nz, j=js:je, I=Isq:Ieq)
-  u_bc_accel(I,j,k) = CAu_pred(I,j,k) + PFu(I,j,k) + diffu(I,j,k)
-enddo</code></pre>
-<p>is converted to an OpenACC kernel.</p>
-<pre class="fortran"><code>!$acc parallel loop collapse(3) vector_length(128)
-do k=1,nz ; do j=js,je ; do I=Isq,Ieq
-  u_bc_accel(I,j,k) = CAu_pred(I,j,k) + PFu(I,j,k) + diffu(I,j,k)
-enddo ; enddo ; enddo
-!$acc end parallel loop</code></pre>
-<p>CUDA threads-per-block is set to 128.</p>
-</section>
-
-<section id="just-another-kernel" class="title-slide slide level1">
-<h1>Just Another Kernel</h1>
-<p><img data-src="img/gengpu.svg" alt="image" /></p>
-</section>
-
 <section id="do-concurrent-rules" class="title-slide slide level1">
 <h1><code>do concurrent</code> rules</h1>
 <p>Execution may occur in any order.</p>
@@ -128,18 +115,19 @@ enddo</code></pre>
 <code>restrict</code>)</p>
 </section>
 
-<section id="memory-management" class="title-slide slide level1">
-<h1>Memory Management</h1>
-<p>Managed memory chokes on complex codes.</p>
-<p>We do manual memory</p>
-<pre class="fortran"><code>!$omp target enter data map(to: a, b)
-!$omp target enter data map(alloc: c)
-
-do concurrent ..
-enddo
-
-!$omp target exit data map(from: c)
-!$omp target exit data map(delete: a, b)</code></pre>
+<section id="nvidias-do-concurrent" class="title-slide slide level1">
+<h1>NVIDIA's <code>do concurrent</code></h1>
+<p>On GPUs, a "<code>do concurrent</code>" block</p>
+<pre class="fortran"><code>do concurrent (k=1:nz, j=js:je, I=Isq:Ieq)
+  u_bc_accel(I,j,k) = CAu_pred(I,j,k) + PFu(I,j,k) + diffu(I,j,k)
+enddo</code></pre>
+<p>is converted to an OpenACC kernel.</p>
+<pre class="fortran"><code>!$acc parallel loop collapse(3) vector_length(128)
+do k=1,nz ; do j=js,je ; do I=Isq,Ieq
+  u_bc_accel(I,j,k) = CAu_pred(I,j,k) + PFu(I,j,k) + diffu(I,j,k)
+enddo ; enddo ; enddo
+!$acc end parallel loop</code></pre>
+<p>CUDA threads-per-block (i.e. vector) is set to 128.</p>
 </section>
 
 <section>
@@ -173,11 +161,32 @@ enddo</code></pre>
 <section id="strategy" class="title-slide slide level1">
 <h1>Strategy</h1>
 <ul>
+<li>Data transfers are expensive
+<ul>
 <li>Keep as much on the GPU as possible</li>
-<li>Manual memory management (for now)</li>
+</ul></li>
+<li>Shared/unified memory is unreliable
+<ul>
+<li>Manual memory management</li>
+</ul></li>
+<li>MOM codebase is large and complex
+<ul>
 <li>do concurrent where we can</li>
-<li>OpenMP (or OpenACC) where we must</li>
+<li>OpenMP / OpenACC where we must</li>
+</ul></li>
 </ul>
+</section>
+
+<section id="memory-management" class="title-slide slide level1">
+<h1>Memory Management</h1>
+<p>Move memory to device</p>
+<pre class="fortran"><code>!$omp target enter data map(to: a, b) map(alloc: c)</code></pre>
+<p>Execute kernel</p>
+<pre class="fortran"><code>do concurrent (k=1:nk, j=1:nj, i=1:ni)
+    a(i,j,k) = b(i,j,k) + c(i,j,k)
+enddo</code></pre>
+<p>Return result to host</p>
+<pre class="fortran"><code>!$omp target exit data map(from: c) map(delete: a, b)</code></pre>
 </section>
 
 <section>
@@ -202,8 +211,34 @@ enddo</code></pre>
 </ul>
 <p>How to deconstruct something like this?</p>
 </section></section>
+<section id="the-team" class="title-slide slide level1">
+<h1>The Team</h1>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<tbody>
+<tr>
+<td><p><img data-src="img/ed.png" height="140" alt="image" /></p>
+<div class="line-block">Ed Yang<br />
+(ACCESS-NRI)</div>
+<p><img data-src="img/utheri.jpg" height="140" alt="image" /></p>
+<div class="line-block">Utheri Wagura<br />
+(NOAA-GFDL)</div></td>
+<td><p><img data-src="img/jorge.png" height="140" alt="image" /></p>
+<div class="line-block">Jorge Galvez Vallejo<br />
+(NCI Australia)</div>
+<p><img data-src="img/marshall.png" height="140" alt="image" /></p>
+<div class="line-block">Marshall Ward<br />
+(NOAA-GFDL)</div></td>
+</tr>
+</tbody>
+</table>
+</section>
+
 <section id="double-gyre-test" class="title-slide slide level1">
-<h1>Double-Gyre Test</h1>
+<h1>Double Gyre Test</h1>
 <p>Describe the model here</p>
 <ul>
 <li>32x32, 100 level, scaled up
@@ -216,21 +251,29 @@ enddo</code></pre>
 <p>GPU: H100</p>
 </section>
 
-<section id="the-team" class="title-slide slide level1">
-<h1>The Team</h1>
-<ul>
-<li>Me (NOAA-GFDL)</li>
-<li>Ed Yang (ACCESS-NRI)</li>
-<li>Jorge Galvez Vallejo (NCI Australia)</li>
-<li>Utheri Wagura (NOAA-GFDL)</li>
-</ul>
-</section>
-
+<section>
 <section id="current-timings" class="title-slide slide level1">
 <h1>Current Timings</h1>
 <p><img data-src="img/genoa_vs_h100.svg" alt="image" /></p>
 </section>
-
+<section id="coradcalc-and-horvisc" class="slide level2">
+<h2>CorAdCalc and Horvisc</h2>
+<p>Serial k-loop of many 2d <code>do concurrent</code> kernels.</p>
+<p>Barotropic also in this camp, but no k-loop. Does OK?</p>
+</section>
+<section id="continuity" class="slide level2">
+<h2>Continuity</h2>
+<p>Several "jki" loops optimized for CPU performance, but does not
+translate to GPUs.</p>
+</section>
+<section id="vertical-friction" class="slide level2">
+<h2>Vertical Friction</h2>
+<p>2d kernel of many k-loop column solvers</p>
+</section>
+<section id="pressure-force" class="slide level2">
+<h2>Pressure force</h2>
+<p>"Mixed bag" of 3d and 2d kernels?</p>
+</section></section>
 <section id="reproducibility" class="title-slide slide level1">
 <h1>Reproducibility</h1>
 <p><img data-src="img/repro.svg" alt="image" /></p>
@@ -283,56 +326,19 @@ do j=js,je ; do i=is,ie ; if (mask(i,j) &gt; 0.) then
 endif ; enddo ; enddo</code></pre>
 </section>
 
-<section id="functions-on-gpus" class="title-slide slide level1">
-<h1>Functions on GPUs</h1>
-<p>Use <code>!$omp declare target</code> in specification</p>
-<pre class="fortran" data-code="fortran
-
-"><code>subroutine gradKE(u, v, KE, KEx, KEy, k, G, GV)
-  !$omp declare target
-  type(ocean_grid_type), intent(in) :: G
-    !&lt; Ocean grid structure
-  type(verticalGrid_type), intent(in) :: GV
-    !&lt; Vertical grid structure
-  real, intent(in) :: u(:,:,:), v(:,:,:)
-    !&lt; Zonal and meridional velocity [L T-1 ~&gt; m s-1]
-  real, intent(out) :: KE(:,:)
-    !&lt; Kinetic energy per unit mass [L2 T-2 ~&gt; m2 s-2]
-  real, intent(out) :: KEx(:,:), KEy(:,:)
-    !&lt; Acceleration due to kinetic energy gradient [L T-2 ~&gt; m s-2]
-  integer, intent(in) :: k
-    !&lt; Layer number to calculate for
-
-  integer :: i, j, is, ie, js, je, Isq, Ieq, Jsq, Jeq, nz, n
-  !! Can also be declared here
-
-  is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec ; nz = GV%ke
-  Isq = G%IscB ; Ieq = G%IecB ; Jsq = G%JscB ; Jeq = G%JecB
-
-  do concurrent (j=Jsq:Jeq+1, i=Isq:Ieq+1)
-    KE(i,j) = ( ( (G%areaCu( I ,j)*(u( I ,j,k)*u( I ,j,k))) + &amp;
-                  (G%areaCu(I-1,j)*(u(I-1,j,k)*u(I-1,j,k))) ) + &amp;
-                ( (G%areaCv(i, J )*(v(i, J ,k)*v(i, J ,k))) + &amp;
-                  (G%areaCv(i,J-1)*(v(i,J-1,k)*v(i,J-1,k))) ) )*0.25*G%IareaT(i,j)
-  enddo
-
-  do concurrent (j=js:je, I=Isq:Ieq)
-    KEx(I,j) = (KE(i+1,j) - KE(i,j)) * G%IdxCu(I,j)
-  enddo
-
-  do concurrent (J=Jsq:Jeq, i=is:ie)
-    KEy(i,J) = (KE(i,j+1) - KE(i,j)) * G%IdyCv(i,J)
-  enddo
-end subroutine gradKE
-</code></pre>
-<p>(although compiler does this automatically)</p>
+<section id="derived-type-alloc" class="title-slide slide level1">
+<h1>Derived Type Alloc</h1>
+<p>TODO</p>
+<p>Arrays in derived types should be handled separately (no deep
+copies).</p>
+<p>And <code>!$omp target update (CS)</code> can clobber existing array
+pointers, be careful!</p>
 </section>
 
 <section id="function-inlining" class="title-slide slide level1">
 <h1>Function Inlining</h1>
-<p>Functions with derived type input do not inline</p>
-<p><img data-src="img/coradcalc_teams.svg" alt="image" /></p>
-<p>Replacing arguments is significantly faster!</p>
+<p>TODO</p>
+<p>Function calls do not inline if derived types are passed.</p>
 </section>
 
 <section id="objects-on-gpus" class="title-slide slide level1">
@@ -350,46 +356,62 @@ end function density_linear</code></pre>
 <p>But this is not a problem unique to Fortran.</p>
 </section>
 
-<section id="derived-type-alloc" class="title-slide slide level1">
-<h1>Derived Type Alloc</h1>
-<p>TODO</p>
-<p>Arrays in derived types should be handled separately (no deep
-copies).</p>
-<p>And <code>!$omp target update (CS)</code> can clobber existing array
-pointers, be careful!</p>
+<section id="recent-improvements" class="title-slide slide level1">
+<h1>Recent Improvements</h1>
+
+</section>
+
+<section id="function-inlining-1" class="title-slide slide level1">
+<h1>Function Inlining</h1>
+<p><img data-src="img/coradcalc_teams.svg" alt="image" /></p>
+<p>Functions with derived type input do not inline. Removing these
+arguments improves performance.</p>
 </section>
 
 <section>
 <section id="async-kernels" class="title-slide slide level1">
-<h1>Async kernels</h1>
+<h1>Async kernels?</h1>
 <p><img data-src="img/async1.png" alt="image" /></p>
 <p><img data-src="img/async2.png" alt="image" /></p>
 <p>Using <code>async</code> allows kernel overhead of one kernel to
-overlap with another.</p>
+overlap with the work of another.</p>
 </section>
 <section id="async-speedup" class="slide level2">
 <h2>Async speedup</h2>
 <p><img data-src="img/async_speedup.png" alt="image" /></p>
 </section></section>
-<section id="upcoming-challenges" class="title-slide slide level1">
-<h1>Upcoming challenges</h1>
+<section id="switch-to-openacc" class="title-slide slide level1">
+<h1>Switch to OpenACC?</h1>
+<p>OpenMP was chosen for portability, but it has been inconvenient</p>
 <ul>
-<li>The next milestone (<code>benchmark</code>) touches many of the
-above issues.</li>
-<li>We cannot write diagnostics! MOM6 has a complex diagnostic manager
-which will require complex design decisions.</li>
-<li>...?</li>
+<li>"<code>!$omp target</code>" and "<code>do concurrent</code>" can
+clash</li>
+<li>No <code>"worker"</code> prevents 2D grid geometries.</li>
+<li>Missing features like <code>async</code> (<code>nowait</code>)</li>
 </ul>
+<p><em>Should we go back to OpenACC?</em></p>
 </section>
 
-<section id="why-pursue" class="title-slide slide level1">
-<h1>Why Pursue?</h1>
+<section>
+<section id="fortran-on-the-gpu" class="title-slide slide level1">
+<h1>Fortran on the GPU?</h1>
 <ul>
 <li>It's working. Numbers are competitive and still improving.</li>
 <li>Reproducible. Operational models can continue.</li>
 <li>Leverage Fortran's history to trust the compiler.</li>
 </ul>
+<p>GPU support for Fortran has improved greatly, and would seem to be a
+viable option for supporting projects on GPUs.</p>
 </section>
+<section id="upcoming-challenges" class="slide level2">
+<h2>Upcoming challenges</h2>
+<ul>
+<li>The next milestone (<code>benchmark</code>) touches many of the
+above issues.</li>
+<li>We cannot write diagnostics! MOM6 has a complex diagnostic manager
+which will require complex design decisions.</li>
+</ul>
+</section></section>
     </div>
   </div>
 
