@@ -326,13 +326,22 @@ do j=js,je ; do i=is,ie ; if (mask(i,j) &gt; 0.) then
 endif ; enddo ; enddo</code></pre>
 </section>
 
-<section id="derived-type-alloc" class="title-slide slide level1">
-<h1>Derived Type Alloc</h1>
-<p>TODO</p>
-<p>Arrays in derived types should be handled separately (no deep
-copies).</p>
-<p>And <code>!$omp target update (CS)</code> can clobber existing array
-pointers, be careful!</p>
+<section id="derived-types" class="title-slide slide level1">
+<h1>Derived Types</h1>
+<p>Derived types and their arrays are handled separately.</p>
+<pre class="fortran"><code>!$omp target enter data map(to: G)
+!$omp target enter data map(to: G%dxT, G%dxCu, G%dxCv, G%dxBu)</code></pre>
+<p>Care must be taken when updating derived types, or one can overwrite
+the array pointers!</p>
+<pre class="fortran"><code>! Transfer CS and its scalars
+!$omp target enter data map(to CS)
+
+! Set up CS arrays
+!$omp target enter data map(to: CS%a_u, CS%a_v)
+!$omp target enter data map(to: CS%h_u, CS%h_v)
+
+! This would overwrite CS pointers and lose array data!
+!$omp target update to(CS)</code></pre>
 </section>
 
 <section id="function-inlining" class="title-slide slide level1">

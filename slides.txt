@@ -384,15 +384,30 @@ No support yet for ``local(array)``, but OpenMP works
    endif ; enddo ; enddo
 
 
-Derived Type Alloc
-==================
+Derived Types
+=============
 
-TODO
+Derived types and their arrays are handled separately.
 
-Arrays in derived types should be handled separately (no deep copies).
+.. code:: fortran
 
-And ``!$omp target update (CS)`` can clobber existing array pointers, be
-careful!
+   !$omp target enter data map(to: G)
+   !$omp target enter data map(to: G%dxT, G%dxCu, G%dxCv, G%dxBu)
+
+Care must be taken when updating derived types, or one can overwrite the array
+pointers!
+
+.. code:: fortran
+
+   ! Transfer CS and its scalars
+   !$omp target enter data map(to CS)
+
+   ! Set up CS arrays
+   !$omp target enter data map(to: CS%a_u, CS%a_v)
+   !$omp target enter data map(to: CS%h_u, CS%h_v)
+
+   ! This would overwrite CS pointers and lose array data!
+   !$omp target update to(CS)
 
 
 Function Inlining
