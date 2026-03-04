@@ -236,16 +236,22 @@ enddo</code></pre>
 
 <section id="double-gyre-test" class="title-slide slide level1">
 <h1>Double Gyre Test</h1>
-<p>Describe the model here</p>
-<ul>
-<li>32x32, 100 level, scaled up
-<ul>
-<li>CPU: Weak scaling to 192, then fixed # of ranks</li>
-<li>GPU: Whatever you get!</li>
-</ul></li>
-</ul>
-<p>CPU: Zen 4 Genoa, 96-core (EPYC 9654)</p>
-<p>GPU: H100</p>
+<table>
+<colgroup>
+<col style="width: 40%" />
+<col style="width: 60%" />
+</colgroup>
+<tbody>
+<tr>
+<td><img data-src="img/gyre.png" alt="image" /></td>
+<td><ul>
+<li>Base domain: 32 × 32 grids, 100 layers</li>
+<li>Weak scaling tests in multiples of grid</li>
+</ul></td>
+</tr>
+</tbody>
+</table>
+<p>CPU is 96-core Zen 4 (Genoa), GPU is H100</p>
 </section>
 
 <section>
