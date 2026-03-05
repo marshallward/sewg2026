@@ -1,6 +1,6 @@
-=======================================================
-Porting MOM6 to GPUs with OpenMP and Fortran intrinsics
-=======================================================
+============================================
+Porting MOM6 to GPUs with Fortran intrinsics
+============================================
 
 :authors:
    - Marshall Ward
