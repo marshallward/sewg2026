@@ -185,6 +185,18 @@ enddo</code></pre>
 <p>ni = 9*32 = 288 &lt;- 257 rounded up to next 32-step</p>
 </blockquote>
 </section></section>
+<section id="memory-management" class="title-slide slide level1">
+<h1>Memory Management</h1>
+<p>Move memory to device</p>
+<pre class="fortran"><code>!$omp target enter data map(to: a, b) map(alloc: c)</code></pre>
+<p>Execute kernel</p>
+<pre class="fortran"><code>do concurrent (k=1:nk, j=1:nj, i=1:ni)
+    a(i,j,k) = b(i,j,k) + c(i,j,k)
+enddo</code></pre>
+<p>Return result to host</p>
+<pre class="fortran"><code>!$omp target exit data map(from: c) map(delete: a, b)</code></pre>
+</section>
+
 <section id="strategy" class="title-slide slide level1">
 <h1>Strategy</h1>
 <ul>
@@ -202,18 +214,6 @@ enddo</code></pre>
 <li>OpenMP / OpenACC where we must</li>
 </ul></li>
 </ul>
-</section>
-
-<section id="memory-management" class="title-slide slide level1">
-<h1>Memory Management</h1>
-<p>Move memory to device</p>
-<pre class="fortran"><code>!$omp target enter data map(to: a, b) map(alloc: c)</code></pre>
-<p>Execute kernel</p>
-<pre class="fortran"><code>do concurrent (k=1:nk, j=1:nj, i=1:ni)
-    a(i,j,k) = b(i,j,k) + c(i,j,k)
-enddo</code></pre>
-<p>Return result to host</p>
-<pre class="fortran"><code>!$omp target exit data map(from: c) map(delete: a, b)</code></pre>
 </section>
 
 <section id="double-gyre-test" class="title-slide slide level1">

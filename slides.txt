@@ -201,24 +201,6 @@ A second example
     ni = 9*32 = 288 <- 257 rounded up to next 32-step
 
 
-Strategy
-========
-
-* Data transfers are expensive
-
-  * Move the entire problem to GPU
-
-* Shared/unified memory is unreliable
-
-  * Manual memory management
-
-* MOM codebase is large and complex
-
-  * do concurrent where we can
-
-  * OpenMP / OpenACC where we must
-
-
 Memory Management
 =================
 
@@ -241,6 +223,24 @@ Return result to host
 .. code:: fortran
 
    !$omp target exit data map(from: c) map(delete: a, b)
+
+
+Strategy
+========
+
+* Data transfers are expensive
+
+  * Move the entire problem to GPU
+
+* Shared/unified memory is unreliable
+
+  * Manual memory management
+
+* MOM codebase is large and complex
+
+  * do concurrent where we can
+
+  * OpenMP / OpenACC where we must
 
 
 ..  The Team
