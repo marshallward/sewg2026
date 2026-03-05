@@ -3,8 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="generator" content="pandoc">
-  <meta name="author" content="Marshall Ward">
-  <meta name="dcterms.date" content="2026-02-28">
+  <meta name="dcterms.date" content="2026-03-05">
   <title>Porting MOM6 to GPUs with OpenMP and Fortran intrinsics</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -57,14 +56,29 @@ href="https://marshallward.org/sewg2026.html">https://marshallward.org/sewg2026.
   </div-->
   <h1 class="title">Porting MOM6 to GPUs with OpenMP and Fortran
 intrinsics</h1>
-  <p class="author" style="text-align: right;">Marshall Ward</p>
+  <p class="author" style="text-align: right;"><ul>
+<li>Marshall Ward</li>
+<li>Ed Yang</li>
+<li>Jorge Galvez Vallejo</li>
+<li>Utheri Wagura</li>
+</ul></p>
   <!-- org has a <p> for some reason... so use <div> -->
-  <div class="organization" style="text-align: right;"><p>NOAA-GFDL</p></div>
-  <p class="date" style="text-align: right;">2026-02-28</p>
+  <div class="organization" style="text-align: right;"><p>... and the
+MOM6 consortium</p></div>
+  <p class="date" style="text-align: right;">2026-03-05</p>
   <!-- Currently cannot add notes to a title slide, so have to do manually-->
   <aside class="notes">
     <p>This is our overall strategy for porting MOM6 to GPUs.</p>
   </aside>
+</section>
+
+<section id="mom6-ocean-model" class="title-slide slide level1">
+<h1>MOM6 Ocean Model</h1>
+<figure>
+<video autoplay loop data-src="media/mom6_relvort.mp4" controls=""><a
+href="media/mom6_relvort.mp4">media/mom6_relvort.mp4</a></video>
+</figure>
+<p>A mission-critical model that doesn't run on GPUs.</p>
 </section>
 
 <section id="gpu-programming" class="title-slide slide level1">
@@ -73,34 +87,37 @@ intrinsics</h1>
 <p>Separate solver into units of work (i.e. kernels)</p>
 </section>
 
+<section>
+<section id="our-challenge" class="title-slide slide level1">
+<h1>Our Challenge</h1>
+<p>MOM6 is a community code used in ongoing research and operational
+tasks. This creates several constraints.</p>
+<ul>
+<li>Fairly large Fortran codebase (~200k LoC)</li>
+<li>No common algorithm, each solver is fairly unique</li>
+<li>Solvers support dozens of customizations</li>
+<li>Major refactors produce answer changes</li>
+</ul>
+<p>Can it be ported to GPUs without disruption?</p>
+</section>
+<section id="breakdown" class="slide level2">
+<h2>Breakdown</h2>
+<ul>
+<li>Kernels may be over 1000 LoC</li>
+<li><code>if</code>-blocks manage model features</li>
+<li>Heavy use of derived types, even objects</li>
+<li>Kernels contain function calls</li>
+</ul>
+</section></section>
 <section id="kernel-types" class="title-slide slide level1">
 <h1>Kernel Types</h1>
 <p><img data-src="img/gengpu.svg" style="width:80.0%" alt="image" /></p>
-<p>Many ways to specify kernels, each with pros and cons</p>
+<p>Many ways to define kernels, each with pros and cons</p>
 </section>
 
-<section id="do-concurrent-kernel" class="title-slide slide level1">
-<h1><code>do concurrent</code> kernel</h1>
-<p>CUDA C++</p>
-<pre class="c++"><code>// Define kernel
-__global__ kernel(a, b, c, ni, nj, nk) {
-     i = blockIdx.x * blockDim.x + threadIdx.x;
-     j = blockIdx.y * blockDim.y + threadIdx.y;
-     k = blockIdx.z;
-
-    a(i,j,k) = b(i,j,k) + c(i,j,k);
-}
-
-// Submit kernel
-kernel&lt;&lt;&lt;grid, tblock&gt;&gt;&gt;(a, b, c, ni, nj, nk);</code></pre>
-<p>Fortran <code>do concurrent</code></p>
-<pre class="fortran"><code>do concurrent (k=1:nk, j=1:nj, i=1:ni)
-    a(i,j,k) = b(i,j,k) + c(i,j,k)
-enddo</code></pre>
-</section>
-
-<section id="do-concurrent-rules" class="title-slide slide level1">
-<h1><code>do concurrent</code> rules</h1>
+<section id="do-concurrent" class="title-slide slide level1">
+<h1><code>do concurrent</code>?</h1>
+<p>A language-standard loop to promote parallelization.</p>
 <p>Execution may occur in any order.</p>
 <pre class="fortran"><code>do concurrent (k=1:nk, j=1:nj, i=1:ni)
     a(i,j,k) = b(i,j,k) + c(i,j,k)
@@ -117,35 +134,38 @@ enddo</code></pre>
 
 <section id="nvidias-do-concurrent" class="title-slide slide level1">
 <h1>NVIDIA's <code>do concurrent</code></h1>
-<p>On GPUs, a "<code>do concurrent</code>" block</p>
+<p><code>nvfortran</code> takes a "<code>do concurrent</code>" block</p>
 <pre class="fortran"><code>do concurrent (k=1:nz, j=js:je, I=Isq:Ieq)
   u_bc_accel(I,j,k) = CAu_pred(I,j,k) + PFu(I,j,k) + diffu(I,j,k)
 enddo</code></pre>
-<p>is converted to an OpenACC kernel.</p>
+<p>and converts it to an OpenACC kernel.</p>
 <pre class="fortran"><code>!$acc parallel loop collapse(3) vector_length(128)
 do k=1,nz ; do j=js,je ; do I=Isq,Ieq
   u_bc_accel(I,j,k) = CAu_pred(I,j,k) + PFu(I,j,k) + diffu(I,j,k)
 enddo ; enddo ; enddo
 !$acc end parallel loop</code></pre>
-<p>CUDA threads-per-block (i.e. vector) is set to 128.</p>
+<p>CUDA threads-per-block (vector) is set to 128.</p>
 </section>
 
 <section>
 <section id="gridblock-mappings" class="title-slide slide level1">
 <h1>Grid/Block Mappings</h1>
-<p>Nested <code>do concurrent</code> can form 2d grids &amp; blocks</p>
-<pre class="fortran"><code>do concurrent (j=js:je)
-  if (present(u_cor)) then
-    do concurrent (k=1:nz, I=is:ie)
-      u_cor(I,j,k) = u(I,j,k) + du(I,j) * visc_rem_u(I,j,k)
-    enddo
-  endif
+<p>Nested <code>do concurrent</code> can launch with dynamic grid and
+block geometries.</p>
+<pre class="fortran"><code>do concurrent (j=jsh:jeh)
+  do concurrent (k=1:nz, I=ish-1:ieh)
+    u_cor(I,j,k) = u(I,j,k) + du(I,j) * visc_rem_u(I,j,k)
+  enddo
 enddo</code></pre>
-<p>For 256 x 256 x 100, this uses (804,66,1) x (32,4,1)</p>
+<p>For a 256 x 256 x 100 domain:</p>
+<ul>
+<li>Grid: (804,66,1)</li>
+<li>Block: (32,4,1)</li>
+</ul>
 </section>
 <section id="a-second-example" class="slide level2">
 <h2>A second example</h2>
-<p>256x256x100 layout is (9,64,1) x (32,4,1)</p>
+<p>256x256x100 kernel geometry is (9,64,1) x (32,4,1)</p>
 <pre class="fortran"><code>do concurrent (j=js:je)
   do k=1,nz
     do concurrent (I=is-1:ie)
@@ -154,16 +174,21 @@ enddo</code></pre>
     enddo
   enddo
 enddo</code></pre>
+<ul>
+<li>CPU cacheing prefers the inner <code>i</code>-loop</li>
+<li>GPU moves serial <code>k</code> inside, sets up blocks</li>
+</ul>
+<blockquote>
 <p>nj = 64*4 = 256</p>
 <p>ni = 9*32 = 288 &lt;- 257 rounded up to next 32-step</p>
-<p>serial k is safely moved inside the thread loop</p>
+</blockquote>
 </section></section>
 <section id="strategy" class="title-slide slide level1">
 <h1>Strategy</h1>
 <ul>
 <li>Data transfers are expensive
 <ul>
-<li>Keep as much on the GPU as possible</li>
+<li>Move the entire problem to GPU</li>
 </ul></li>
 <li>Shared/unified memory is unreliable
 <ul>
@@ -189,51 +214,6 @@ enddo</code></pre>
 <pre class="fortran"><code>!$omp target exit data map(from: c) map(delete: a, b)</code></pre>
 </section>
 
-<section>
-<section id="mom6-codebase" class="title-slide slide level1">
-<h1>MOM6 Codebase</h1>
-<ul>
-<li>Community code. Changes affect many others</li>
-<li>Large codebase. Major rewrites are costly</li>
-<li>Algorithmic. MOM is not one solver, it is dozens</li>
-<li>Diagnostics. Many intermediate fields are saved</li>
-</ul>
-</section>
-<section id="breakdown" class="slide level2">
-<h2>Breakdown</h2>
-<ul>
-<li>Kernels may be over 1000 LoC</li>
-<li><code>if</code>-blocks manage model features</li>
-<li>Heavy use of derived types, even objects</li>
-<li>Kernels contain function calls</li>
-</ul>
-</section></section>
-<section id="the-team" class="title-slide slide level1">
-<h1>The Team</h1>
-<table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
-<tbody>
-<tr>
-<td><p><img data-src="img/ed.png" height="140" alt="image" /></p>
-<div class="line-block">Ed Yang<br />
-(ACCESS-NRI)</div>
-<p><img data-src="img/utheri.jpg" height="140" alt="image" /></p>
-<div class="line-block">Utheri Wagura<br />
-(NOAA-GFDL)</div></td>
-<td><p><img data-src="img/jorge.png" height="140" alt="image" /></p>
-<div class="line-block">Jorge Galvez Vallejo<br />
-(NCI Australia)</div>
-<p><img data-src="img/marshall.png" height="140" alt="image" /></p>
-<div class="line-block">Marshall Ward<br />
-(NOAA-GFDL)</div></td>
-</tr>
-</tbody>
-</table>
-</section>
-
 <section id="double-gyre-test" class="title-slide slide level1">
 <h1>Double Gyre Test</h1>
 <table>
@@ -245,6 +225,7 @@ enddo</code></pre>
 <tr>
 <td><img data-src="img/gyre.png" alt="image" /></td>
 <td><ul>
+<li>Simple layered dynamics</li>
 <li>Base domain: 32 × 32 grids, 100 layers</li>
 <li>Weak scaling tests in multiples of grid</li>
 </ul></td>
@@ -254,9 +235,21 @@ enddo</code></pre>
 <p>CPU is 96-core Zen 4 (Genoa), GPU is H100</p>
 </section>
 
+<section id="dycore-performance" class="title-slide slide level1">
+<h1>Dycore Performance</h1>
+<p><img data-src="img/genoa_vs_h100_dycore.svg" alt="image" /></p>
+<p>Performance is currently comparable to CPU.</p>
+</section>
+
+<section id="bit-reproducibility" class="title-slide slide level1">
+<h1>Bit Reproducibility</h1>
+<p><img data-src="img/repro.svg" alt="image" /></p>
+<p>Research and operations can continue uninterrupted</p>
+</section>
+
 <section>
-<section id="current-timings" class="title-slide slide level1">
-<h1>Current Timings</h1>
+<section id="dycore-breakdown" class="title-slide slide level1">
+<h1>Dycore Breakdown</h1>
 <p><img data-src="img/genoa_vs_h100.svg" alt="image" /></p>
 </section>
 <section id="coradcalc-and-horvisc" class="slide level2">
@@ -277,20 +270,20 @@ translate to GPUs.</p>
 <h2>Pressure force</h2>
 <p>"Mixed bag" of 3d and 2d kernels?</p>
 </section></section>
-<section id="reproducibility" class="title-slide slide level1">
-<h1>Reproducibility</h1>
-<p><img data-src="img/repro.svg" alt="image" /></p>
-<p>NVIDIA CPU and GPU give bit-identical results</p>
-</section>
-
 <section id="fms-mpi-support" class="title-slide slide level1">
 <h1>FMS MPI Support</h1>
 <p><img data-src="img/fms_mpi.svg" alt="image" /></p>
 <p>Message passing FMS buffers are on GPUs</p>
 </section>
 
-<section id="mpi-scaling" class="title-slide slide level1">
-<h1>MPI Scaling</h1>
+<section id="dycore-scaling" class="title-slide slide level1">
+<h1>Dycore Scaling</h1>
+<p><img data-src="img/h100_dycore_scaling.svg" alt="image" /></p>
+<p>We are seeing scalability with GPU over MPI</p>
+</section>
+
+<section id="module-scaling" class="title-slide slide level1">
+<h1>Module scaling</h1>
 <p><img data-src="img/mpi_scaling.svg" alt="image" /></p>
 </section>
 
@@ -404,25 +397,26 @@ overlap with the work of another.</p>
 </section></section>
 <section id="switch-to-openacc" class="title-slide slide level1">
 <h1>Switch to OpenACC?</h1>
-<p>OpenMP was chosen for portability, but it has been inconvenient</p>
+<p>OpenMP was chosen for portability, but there are occasional
+issues.</p>
 <ul>
 <li>"<code>!$omp target</code>" and "<code>do concurrent</code>" can
 clash</li>
-<li>No <code>"worker"</code> prevents 2D grid geometries.</li>
+<li>No <code>"worker"</code> abstraction prevents 2D thread
+geometries.</li>
 <li>Missing features like <code>async</code> (<code>nowait</code>)</li>
 </ul>
-<p><em>Should we go back to OpenACC?</em></p>
 </section>
 
 <section>
 <section id="fortran-on-the-gpu" class="title-slide slide level1">
-<h1>Fortran on the GPU?</h1>
+<h1>Fortran on the GPU</h1>
 <ul>
 <li>It's working. Numbers are competitive and still improving.</li>
 <li>Reproducible. Operational models can continue.</li>
 <li>Leverage Fortran's history to trust the compiler.</li>
 </ul>
-<p>GPU support for Fortran has improved greatly, and would seem to be a
+<p>GPU support for Fortran has improved greatly, and should be seen as a
 viable option for supporting projects on GPUs.</p>
 </section>
 <section id="upcoming-challenges" class="slide level2">
