@@ -81,12 +81,6 @@ href="media/mom6_relvort.mp4">media/mom6_relvort.mp4</a></video>
 <p>A mission-critical model that doesn't run on GPUs.</p>
 </section>
 
-<section id="gpu-programming" class="title-slide slide level1">
-<h1>GPU Programming</h1>
-<p><img data-src="img/kernel.svg" style="width:60.0%" alt="image" /></p>
-<p>Separate solver into units of work (i.e. kernels)</p>
-</section>
-
 <section>
 <section id="our-challenge" class="title-slide slide level1">
 <h1>Our Challenge</h1>
@@ -94,9 +88,9 @@ href="media/mom6_relvort.mp4">media/mom6_relvort.mp4</a></video>
 tasks. This creates several constraints.</p>
 <ul>
 <li>Fairly large Fortran codebase (~200k LoC)</li>
-<li>No common algorithm, each solver is fairly unique</li>
+<li>Answer changes disrupt ongoing research activities</li>
+<li>Many solvers, each algorithmically different</li>
 <li>Solvers support dozens of customizations</li>
-<li>Major refactors produce answer changes</li>
 </ul>
 <p>Can it be ported to GPUs without disruption?</p>
 </section>
@@ -238,7 +232,8 @@ enddo</code></pre>
 <section id="dycore-performance" class="title-slide slide level1">
 <h1>Dycore Performance</h1>
 <p><img data-src="img/genoa_vs_h100_dycore.svg" alt="image" /></p>
-<p>Performance is currently comparable to CPU.</p>
+<p>Performance is comparable to 96-core CPU with minimal code
+changes</p>
 </section>
 
 <section id="bit-reproducibility" class="title-slide slide level1">
@@ -339,23 +334,6 @@ endif ; enddo ; enddo</code></pre>
 !$omp target update to(CS)</code></pre>
 </section>
 
-<section id="function-inlining" class="title-slide slide level1">
-<h1>Function Inlining</h1>
-<p>Kernel performance depends on inline of GPU functions</p>
-<pre class="fortran"><code>do concurrent (k=1:nz)
-   do concurrent (J=Jsq-1:Jeq+1, I=Isq-1:Ieq+1)
-     dvdx(I,J) = (v(i+1,J,k)*G%dyCv(i+1,J)) - (v(i,J,k)*G%dyCv(i,J))
-     dudy(I,J) = (u(I,j+1,k)*G%dxCu(I,j+1)) - (u(I,j,k)*G%dxCu(I,j))
-   enddo
-
-   ! Derived types: OBC, G, GV, US, CS
-   call gradKE(u, v, h, KE, KEx, KEy, k, OBC, G, GV, US, CS)
-
-   ! ...
-enddo</code></pre>
-<p>But function calls do not inline if they pass derived types</p>
-</section>
-
 <section id="no-objects-on-gpus" class="title-slide slide level1">
 <h1>No Objects on GPUs</h1>
 <p>Dynamic object-oriented constructs are volatile</p>
@@ -371,9 +349,21 @@ end function density_linear</code></pre>
 <p>But this is not a problem unique to Fortran.</p>
 </section>
 
-<section id="recent-improvements" class="title-slide slide level1">
-<h1>Recent Improvements</h1>
+<section id="function-inlining" class="title-slide slide level1">
+<h1>Function Inlining</h1>
+<p>Kernel performance depends on inline of GPU functions</p>
+<pre class="fortran"><code>do concurrent (k=1:nz)
+   do concurrent (J=Jsq-1:Jeq+1, I=Isq-1:Ieq+1)
+     dvdx(I,J) = (v(i+1,J,k)*G%dyCv(i+1,J)) - (v(i,J,k)*G%dyCv(i,J))
+     dudy(I,J) = (u(I,j+1,k)*G%dxCu(I,j+1)) - (u(I,j,k)*G%dxCu(I,j))
+   enddo
 
+   ! Derived types: OBC, G, GV, US, CS
+   call gradKE(u, v, h, KE, KEx, KEy, k, OBC, G, GV, US, CS)
+
+   ! ...
+enddo</code></pre>
+<p>But function calls do not inline if they pass derived types</p>
 </section>
 
 <section id="team-parallelization" class="title-slide slide level1">
@@ -414,10 +404,11 @@ geometries.</li>
 <ul>
 <li>It's working. Numbers are competitive and still improving.</li>
 <li>Reproducible. Operational models can continue.</li>
-<li>Leverage Fortran's history to trust the compiler.</li>
+<li>Compilers are only getting better.</li>
 </ul>
-<p>GPU support for Fortran has improved greatly, and should be seen as a
-viable option for supporting projects on GPUs.</p>
+<p>MOM6 can run on GPUs using standard Fortran constructs. We expect
+further improvements as we gain proficiency with the algorithms and
+technology.</p>
 </section>
 <section id="upcoming-challenges" class="slide level2">
 <h2>Upcoming challenges</h2>
