@@ -103,8 +103,14 @@ tasks. This creates several constraints.</p>
 <li>Kernels contain function calls</li>
 </ul>
 </section></section>
-<section id="kernel-types" class="title-slide slide level1">
-<h1>Kernel Types</h1>
+<section id="gpu-programming" class="title-slide slide level1">
+<h1>GPU Programming</h1>
+<p><img data-src="img/kernel.svg" style="width:60.0%" alt="image" /></p>
+<p>Separate solver into units of work (i.e. kernels)</p>
+</section>
+
+<section id="diverse-kernels" class="title-slide slide level1">
+<h1>Diverse Kernels</h1>
 <p><img data-src="img/gengpu.svg" style="width:80.0%" alt="image" /></p>
 <p>Many ways to define kernels, each with pros and cons</p>
 </section>
@@ -142,8 +148,8 @@ enddo ; enddo ; enddo
 </section>
 
 <section>
-<section id="gridblock-mappings" class="title-slide slide level1">
-<h1>Grid/Block Mappings</h1>
+<section id="nested-do-concurrent" class="title-slide slide level1">
+<h1>Nested <code>do concurrent</code></h1>
 <p>Nested <code>do concurrent</code> can launch with dynamic grid and
 block geometries.</p>
 <pre class="fortran"><code>do concurrent (j=jsh:jeh)
@@ -151,15 +157,17 @@ block geometries.</p>
     u_cor(I,j,k) = u(I,j,k) + du(I,j) * visc_rem_u(I,j,k)
   enddo
 enddo</code></pre>
-<p>For a 256 x 256 x 100 domain:</p>
+<p>For a 256 × 256 × 100 domain:</p>
 <ul>
 <li>Grid: (804,66,1)</li>
 <li>Block: (32,4,1)</li>
 </ul>
+<p>804 × 32 comprises the <code>i-k</code> loop, 66 × 4 the
+<code>j</code> loop</p>
 </section>
 <section id="a-second-example" class="slide level2">
 <h2>A second example</h2>
-<p>256x256x100 kernel geometry is (9,64,1) x (32,4,1)</p>
+<p>256 × 256 × 100 kernel geometry is (9,64,1) × (32,4,1)</p>
 <pre class="fortran"><code>do concurrent (j=js:je)
   do k=1,nz
     do concurrent (I=is-1:ie)
@@ -242,29 +250,11 @@ changes</p>
 <p>Research and operations can continue uninterrupted</p>
 </section>
 
-<section>
 <section id="dycore-breakdown" class="title-slide slide level1">
 <h1>Dycore Breakdown</h1>
 <p><img data-src="img/genoa_vs_h100.svg" alt="image" /></p>
 </section>
-<section id="coradcalc-and-horvisc" class="slide level2">
-<h2>CorAdCalc and Horvisc</h2>
-<p>Serial k-loop of many 2d <code>do concurrent</code> kernels.</p>
-<p>Barotropic also in this camp, but no k-loop. Does OK?</p>
-</section>
-<section id="continuity" class="slide level2">
-<h2>Continuity</h2>
-<p>Several "jki" loops optimized for CPU performance, but does not
-translate to GPUs.</p>
-</section>
-<section id="vertical-friction" class="slide level2">
-<h2>Vertical Friction</h2>
-<p>2d kernel of many k-loop column solvers</p>
-</section>
-<section id="pressure-force" class="slide level2">
-<h2>Pressure force</h2>
-<p>"Mixed bag" of 3d and 2d kernels?</p>
-</section></section>
+
 <section id="fms-mpi-support" class="title-slide slide level1">
 <h1>FMS MPI Support</h1>
 <p><img data-src="img/fms_mpi.svg" alt="image" /></p>
@@ -417,6 +407,11 @@ technology.</p>
 above issues.</li>
 <li>We cannot write diagnostics! MOM6 has a complex diagnostic manager
 which will require complex design decisions.</li>
+<li>The ultimate goal is GFDL's OM5 configuration.
+<ul>
+<li>By this point, each respective group could be working on their own
+configuration of interest!</li>
+</ul></li>
 </ul>
 </section></section>
     </div>
